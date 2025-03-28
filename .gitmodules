@@ -1,13 +1,4 @@
 [submodule "Telegram-bot"]
 	path = Telegram-bot
 	url = https://github.com/Bubi-mubi/Telegram-bot.git
-.DS_Store
-# Python bytecode
-*.pyc
-*.pyo
 
-# Virtualenv
-venv/
-
-# .env file
-.env
