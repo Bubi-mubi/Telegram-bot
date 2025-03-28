@@ -619,8 +619,12 @@ def handle_message(message):
 
 # Стартиране на бота
 print("🤖 Bot is polling...")
+# Завършваме първоначалното пускане на бота
 bot.polling(none_stop=True)
 
-import os
-port = int(os.environ.get("PORT", 5000))  # Получава порт от Heroku (или използва 5000 за локален тест)
-bot.polling(none_stop=True)
+# Зареждаме токените и ключовете директно за удобство (ако не използвате .env файл)
+TELEGRAM_BOT_TOKEN = "7970130151:AAHAR3P7aCPmjBkLeXieYB6kWGa0JMHXuT4"  # Telegram Bot API токен
+AIRTABLE_PERSONAL_ACCESS_TOKEN = "patFcdjRFIBDT6AbQ.7871cfd63a7b6db9bb41b480c677942e6d4f2f810597feb1ec16fd7c6c3423a1"  # Airtable Personal Access Token
+AIRTABLE_BASE_ID = "app48TkG8A1C2U0Fg"  # ID на Airtable базата
+TABLE_ACCOUNTS = "ВСИЧКИ АКАУНТИ"
+TABLE_REPORTS = "Отчет Телеграм"
