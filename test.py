@@ -619,3 +619,12 @@ def handle_message(message):
 # Стартиране на бота
 print("🤖 Bot is polling...")
 bot.polling(none_stop=True)
+
+import os
+
+# Задаваме порт от Heroku, ако не е зададен по подразбиране
+port = int(os.environ.get("PORT", 5000))  # Ако Heroku не предоставя PORT, използваме 5000
+
+# Стартиране на бота
+print("🤖 Bot is polling...")
+bot.polling(none_stop=True, interval=0)
