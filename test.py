@@ -299,6 +299,7 @@ def process_delete_choice(message):
         record_index = int(message.text.split()[1]) - 1  # Преобразуваме в индекс
         if user_id in user_records and 0 <= record_index < len(user_records[user_id]):
             record_id = user_records[user_id][record_index]
+            print(f"Deleting record {record_id}")
             
             # Изтриване на записа от Airtable
             delete_url = f"{url_reports}/{record_id}"
@@ -621,10 +622,5 @@ print("🤖 Bot is polling...")
 bot.polling(none_stop=True)
 
 import os
-
-# Задаваме порт от Heroku, ако не е зададен по подразбиране
-port = int(os.environ.get("PORT", 5000))  # Ако Heroku не предоставя PORT, използваме 5000
-
-# Стартиране на бота
-print("🤖 Bot is polling...")
-bot.polling(none_stop=True, interval=0)
+port = int(os.environ.get("PORT", 5000))  # Получава порт от Heroku (или използва 5000 за локален тест)
+bot.polling(none_stop=True)
