@@ -620,7 +620,7 @@ def handle_message(message):
 # Стартиране на бота
 print("🤖 Bot is polling...")
 # Завършваме първоначалното пускане на бота
-bot.polling(none_stop=True)
+# bot.polling(none_stop=True)
 
 # Зареждаме токените и ключовете директно за удобство (ако не използвате .env файл)
 TELEGRAM_BOT_TOKEN = "7970130151:AAHAR3P7aCPmjBkLeXieYB6kWGa0JMHXuT4"  # Telegram Bot API токен
