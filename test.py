@@ -618,7 +618,7 @@ def handle_message(message):
         print(f"Failed to create record: HTTP {res_post.status_code} - {error_msg}")
 
 # Стартиране на бота
-print("🤖 Bot is polling...")
+# print("🤖 Bot is polling...")
 # Завършваме първоначалното пускане на бота
 # bot.polling(none_stop=True)
 
