@@ -3,6 +3,9 @@ import re
 import requests
 from datetime import datetime
 import telebot
+# --- АВТОМАТИЧНО ИЗТРИВАНЕ НА WEBHOOK ---
+import requests
+requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/deleteWebhook")
 
 # Конфигурация – въведете вашите токени/ключове
 TELEGRAM_BOT_TOKEN = "7970130151:AAHAR3P7aCPmjBkLeXieYB6kWGa0JMHXuT4"  # Telegram Bot API токен
@@ -623,22 +626,6 @@ def handle_message(message):
 # Стартиране на бота
 print("🤖 Bot is polling...")
 # Завършваме първоначалното пускане на бота
-
-def save_to_airtable(data):
-    url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_MAIN_TABLE_NAME}"
-    headers = {
-        "Authorization": f"Bearer {AIRTABLE_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "fields": data
-    }
-    response = requests.post(url, headers=headers, json=payload)
-    if response.status_code in [200, 201]:
-        print("✅ Успешен запис в Airtable.")
-    else:
-        print("❌ Грешка при запис в Airtable:", response.text)
-
 bot.polling(none_stop=True)
 
 # Зареждаме токените и ключовете директно за удобство (ако не използвате .env файл)
