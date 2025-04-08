@@ -5,7 +5,7 @@ from datetime import datetime
 import telebot
 # --- АВТОМАТИЧНО ИЗТРИВАНЕ НА WEBHOOK ---
 import requests
-requests.post(f"https://api.telegram.org/bot{7970130151:AAHAR3P7aCPmjBkLeXieYB6kWGa0JMHXuT4}/deleteWebhook")
+requests.post(f"https://api.telegram.org/bot{"7970130151:AAHAR3P7aCPmjBkLeXieYB6kWGa0JMHXuT4"}/deleteWebhook")
 
 # Конфигурация – въведете вашите токени/ключове
 TELEGRAM_BOT_TOKEN = "7970130151:AAHAR3P7aCPmjBkLeXieYB6kWGa0JMHXuT4"  # Telegram Bot API токен
