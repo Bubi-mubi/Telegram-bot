@@ -661,12 +661,9 @@ def get_transaction_types():
 
 def generate_transaction_type_list():
     types = get_transaction_types()
-    text = "📌 Видове транзакции:
-
-"
+    text = "📌 Видове транзакции:"
     for number, item in types.items():
-        text += f"{number}. {item['name']}
-"
+        text += f"{number}. {item['name']}"
     return text
 
 def send_list_on_start():
