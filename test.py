@@ -634,15 +634,16 @@ TABLE_REPORTS = "Отчет Телеграм"
 
 
 
-# --- ДОБАВЕНА ФУНКЦИОНАЛНОСТ ---
-
+import requests
+import telebot
 import threading
 import time
-import telebot
 
+# --- НАСТРОЙКИ ---
 ADMIN_CHAT_ID = 1443342610  # Telegram ID на потребителя
-
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
+
+# --- ВЗЕМАНЕ НА ВИДОВЕ ТРАНЗАКЦИИ ОТ AIRTABLE ---
 
 def get_transaction_types():
     url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_TYPE_TABLE_NAME}"
@@ -660,9 +661,12 @@ def get_transaction_types():
 
 def generate_transaction_type_list():
     types = get_transaction_types()
-    text = "📌 Видове транзакции:\n\n"
+    text = "📌 Видове транзакции:
+
+"
     for number, item in types.items():
-        text += f"{number}. {item['name']}\n"
+        text += f"{number}. {item['name']}
+"
     return text
 
 def send_list_on_start():
@@ -676,27 +680,32 @@ def send_list_on_start():
 
 threading.Thread(target=send_list_on_start).start()
 
-@bot.message_handler(commands=['списък'])
-def send_transaction_type_list(message):
+# --- КОМАНДА /start ---
+
+@bot.message_handler(commands=['start'])
+def handle_start(message):
     text = generate_transaction_type_list()
     bot.send_message(message.chat.id, text)
+
+# --- СЪСТОЯНИЕ НА ПОТРЕБИТЕЛ ---
 
 user_states = {}
 
 def extract_amount(text):
     try:
-        parts = text.split(" ")
-        amount = float(parts[0])
+        amount = float(text.split(" ")[0])
         return amount
     except:
         return None
 
 def extract_description(text):
-    return " ".join(text.split(" ")[2:])
+    return " ".join(text.split(" ")[2:])  # Пропуска сума и валута
 
 def save_to_airtable(data):
     print("📤 Запис в Airtable:", data)
-    # Тук можеш да добавиш реално изпращане към Airtable API
+    # Тук можеш да добавиш реален POST към Airtable
+
+# --- ХЕНДЛЕР ЗА ВСЯКО СЪОБЩЕНИЕ ---
 
 @bot.message_handler(func=lambda msg: True)
 def handle_message(msg):
@@ -728,7 +737,8 @@ def handle_message(msg):
         }
         bot.send_message(chat_id, "Моля, въведи номер на ВИД транзакция (виж /списък)")
     else:
-        bot.send_message(chat_id, "❗ Неразпознат формат. Използвай нещо като: `100 обяд от карта`")
+        bot.send_message(chat_id, "❗ Неразпознат формат. Използвай нещо като: `100 лв. за <описание> от <акаунт>`")
 
+# --- СТАРТ НА БОТА ---
 print("🤖 Bot is polling...")
 bot.polling(none_stop=True)
