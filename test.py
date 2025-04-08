@@ -141,6 +141,8 @@ def parse_transaction(text):
 def clean_string(s):
     """Премахва препинателни знаци и прави всичко малки букви."""
     return re.sub(r'[^\w\s]', '', s).lower()
+import re
+import requests
 
 # Обработчик за командата "/edit"
 @bot.message_handler(commands=['edit'])
@@ -290,6 +292,7 @@ def handle_delete(message):
         bot.register_next_step_handler(sent_msg, process_delete_choice)
     else:
         bot.reply_to(message, "❌ Няма записи за изтриване.")
+
 
 def process_delete_choice(message):
     """Обработва избора на запис за изтриване."""
@@ -628,3 +631,104 @@ AIRTABLE_PERSONAL_ACCESS_TOKEN = "patFcdjRFIBDT6AbQ.7871cfd63a7b6db9bb41b480c677
 AIRTABLE_BASE_ID = "app48TkG8A1C2U0Fg"  # ID на Airtable базата
 TABLE_ACCOUNTS = "ВСИЧКИ АКАУНТИ"
 TABLE_REPORTS = "Отчет Телеграм"
+
+
+
+# --- ДОБАВЕНА ФУНКЦИОНАЛНОСТ ---
+
+import threading
+import time
+import telebot
+
+ADMIN_CHAT_ID = 1443342610  # Telegram ID на потребителя
+
+bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
+
+def get_transaction_types():
+    url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_TYPE_TABLE_NAME}"
+    headers = {
+        "Authorization": f"Bearer {AIRTABLE_API_KEY}"
+    }
+    response = requests.get(url, headers=headers)
+    records = response.json().get("records", [])
+    type_dict = {}
+    for i, record in enumerate(records, start=1):
+        name = record["fields"].get("Име", f"Опция {i}")
+        type_id = record["id"]
+        type_dict[str(i)] = {"name": name, "id": type_id}
+    return type_dict
+
+def generate_transaction_type_list():
+    types = get_transaction_types()
+    text = "📌 Видове транзакции:\n\n"
+    for number, item in types.items():
+        text += f"{number}. {item['name']}\n"
+    return text
+
+def send_list_on_start():
+    time.sleep(2)
+    try:
+        text = generate_transaction_type_list()
+        bot.send_message(ADMIN_CHAT_ID, text)
+        print("✅ Списъкът беше изпратен при стартиране.")
+    except Exception as e:
+        print(f"⚠️ Грешка при изпращане на списъка: {e}")
+
+threading.Thread(target=send_list_on_start).start()
+
+@bot.message_handler(commands=['списък'])
+def send_transaction_type_list(message):
+    text = generate_transaction_type_list()
+    bot.send_message(message.chat.id, text)
+
+user_states = {}
+
+def extract_amount(text):
+    try:
+        parts = text.split(" ")
+        amount = float(parts[0])
+        return amount
+    except:
+        return None
+
+def extract_description(text):
+    return " ".join(text.split(" ")[2:])
+
+def save_to_airtable(data):
+    print("📤 Запис в Airtable:", data)
+    # Тук можеш да добавиш реално изпращане към Airtable API
+
+@bot.message_handler(func=lambda msg: True)
+def handle_message(msg):
+    chat_id = msg.chat.id
+    text = msg.text.strip()
+
+    if chat_id in user_states and user_states[chat_id].get("awaiting_type"):
+        types = get_transaction_types()
+        selected = types.get(text)
+        if selected:
+            draft = user_states[chat_id]["draft"]
+            draft["ВИД"] = [selected["id"]]
+            save_to_airtable(draft)
+            bot.send_message(chat_id, f"✅ Записано с ВИД: {selected['name']}")
+            del user_states[chat_id]
+        else:
+            bot.send_message(chat_id, "❗ Невалиден номер. Опитай отново.")
+        return
+
+    amount = extract_amount(text)
+    description = extract_description(text)
+    if amount is not None:
+        user_states[chat_id] = {
+            "awaiting_type": True,
+            "draft": {
+                "Сума": amount,
+                "Описание": description
+            }
+        }
+        bot.send_message(chat_id, "Моля, въведи номер на ВИД транзакция (виж /списък)")
+    else:
+        bot.send_message(chat_id, "❗ Неразпознат формат. Използвай нещо като: `100 обяд от карта`")
+
+print("🤖 Bot is polling...")
+bot.polling(none_stop=True)
