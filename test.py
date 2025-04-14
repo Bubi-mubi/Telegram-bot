@@ -628,11 +628,11 @@ def handle_message(message):
 }
 
 # ✅ Добавяме "ВИД", ако има избран
-if user_id in user_pending_type:
-    selected_type = user_pending_type[user_id].get("selected")
-    if selected_type:
-        fields["ВИД"] = selected_type
-        del user_pending_type[user_id]
+    if user_id in user_pending_type:
+        selected_type = user_pending_type[user_id].get("selected")
+            if selected_type:
+            fields["ВИД"] = selected_type
+            del user_pending_type[user_id]
 
     if currency_code == "BGN":
         fields["Сума (лв.)"] = amount
