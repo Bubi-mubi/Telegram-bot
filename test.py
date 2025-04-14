@@ -582,12 +582,13 @@ def handle_message(message):
 
     # Подготовка на данните за новия запис в "Отчет Телеграм"
     fields = {
-        "Дата": current_datetime,  # Добавяме текущата дата и час в полето "Дата"
-    if user_id in user_pending_type and user_pending_type[user_id].get("selected"):
-        fields["ВИД"] = user_pending_type[user_id]["selected"]
+    "Дата": current_datetime,
+    "Описание": description,
+}
 
-        "Описание": description,
-    }
+if user_id in user_pending_type and user_pending_type[user_id].get("selected"):
+    fields["ВИД"] = user_pending_type[user_id]["selected"]
+
     if currency_code == "BGN":
         fields["Сума (лв.)"] = amount
     elif currency_code == "EUR":
