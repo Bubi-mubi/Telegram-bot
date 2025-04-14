@@ -27,6 +27,8 @@ bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 # Словар за запазване на всички записи на потребителя
 user_records = {}
 
+user_pending_type = {}
+
 # Словар за запазване на избрания запис за редактиране
 user_editing = {}
 
@@ -145,6 +147,40 @@ def clean_string(s):
     return re.sub(r'[^\w\s]', '', s).lower()
 import re
 import requests
+
+def get_transaction_types():
+    # Можеш да замениш със стойности от Airtable в бъдеще
+    return [
+        "Proxy", "New SIM card UK", "Office supplies",
+        "Ivelin money", "GSM", "Такси", "Пътуване", "Други"
+    ]
+
+from telebot import types  # Увери се, че този импорт е наличен!
+
+@bot.message_handler(commands=['settype'])
+def ask_transaction_type(message):
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    types_list = get_transaction_types()
+    buttons = [types.InlineKeyboardButton(text=typ, callback_data=typ) for typ in types_list]
+    markup.add(*buttons)
+
+    msg = bot.send_message(message.chat.id, "📌 Избери вид на транзакцията:", reply_markup=markup)
+    user_pending_type[message.chat.id] = {"msg_id": msg.message_id}
+
+@bot.callback_query_handler(func=lambda call: call.data in get_transaction_types())
+def handle_transaction_type_selection(call):
+    user_id = call.message.chat.id
+    selected_type = call.data
+
+    bot.answer_callback_query(call.id)
+    bot.edit_message_text(
+        chat_id=user_id,
+        message_id=user_pending_type[user_id]["msg_id"],
+        text=f"✅ Избра вид: {selected_type}"
+    )
+
+    user_pending_type[user_id]["selected"] = selected_type
+
 
 # Обработчик за командата "/edit"
 @bot.message_handler(commands=['edit'])
@@ -586,7 +622,11 @@ def handle_message(message):
     fields = {
         "Дата": current_datetime,  # Добавяме текущата дата и час в полето "Дата"
         "Описание": description,
+        
     }
+    if user_id in user_pending_type and user_pending_type[user_id].get("selected"):
+        fields["ВИД"] = user_pending_type[user_id]["selected"]
+
     if currency_code == "BGN":
         fields["Сума (лв.)"] = amount
     elif currency_code == "EUR":
