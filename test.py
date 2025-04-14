@@ -14,6 +14,7 @@ user_states = {}
 
 # 1. Вземаме опциите от колоната "ВИД"
 def get_transaction_types():
+    print("🛠️ Влизаме в get_transaction_types()")
     url = f"https://api.airtable.com/v0/meta/bases/{AIRTABLE_BASE_ID}/tables"
     headers = {
         "Authorization": f"Bearer {AIRTABLE_TOKEN}",
@@ -26,7 +27,10 @@ def get_transaction_types():
         if table["name"] == AIRTABLE_TABLE_NAME:
             for field in table["fields"]:
                 if field["name"] == AIRTABLE_FIELD_NAME:
-                    return [opt["name"] for opt in field["options"]["choices"]]
+                    choices = [opt["name"] for opt in field["options"]["choices"]]
+                    print("✅ Извлечени типове транзакции:", choices)
+                    return choices
+    print("⚠️ Не бяха намерени стойности за колоната 'ВИД'")
     return []
 
 # 2. Строим клавиатура с опции + странициране
@@ -56,6 +60,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_states[user_id] = {"entry": text}
     transaction_types = get_transaction_types()
     keyboard = build_keyboard(transaction_types)
+    if not transaction_types:
+    await update.message.reply_text("⚠️ Няма налични типове транзакции от Airtable.")
+    return
     await update.message.reply_text("📌 За какъв вид транзакция се отнася?", reply_markup=keyboard)
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
