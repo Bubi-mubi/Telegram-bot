@@ -518,6 +518,9 @@ def handle_message(message):
     text = message.text  # Получаваме текста от съобщението
     user_name = message.from_user.first_name  # Извличаме името на потребителя
     user_id = message.chat.id  # ID на потребителя в чата
+
+    if user_id in user_pending_type and user_pending_type[user_id].get("selected"):
+        fields["ВИД"] = user_pending_type[user_id]["selected"]
     """Обработва всяко получено текстово съобщение като финансов отчет."""
 
     # Вземаме текущата дата и час в желания формат
@@ -582,13 +585,9 @@ def handle_message(message):
 
     # Подготовка на данните за новия запис в "Отчет Телеграм"
     fields = {
-    "Дата": current_datetime,
-    "Описание": description,
-}
-
-if user_id in user_pending_type and user_pending_type[user_id].get("selected"):
-    fields["ВИД"] = user_pending_type[user_id]["selected"]
-
+        "Дата": current_datetime,  # Добавяме текущата дата и час в полето "Дата"
+        "Описание": description,
+    }
     if currency_code == "BGN":
         fields["Сума (лв.)"] = amount
     elif currency_code == "EUR":
@@ -672,3 +671,8 @@ def handle_transaction_type_selection(call):
     )
 
     user_pending_type[user_id]["selected"] = selected_type
+
+# Стартиране на бота
+print("🤖 Bot is polling...")
+# Завършваме първоначалното пускане на бота
+bot.polling(none_stop=True)
