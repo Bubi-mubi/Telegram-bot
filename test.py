@@ -76,7 +76,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(
             f"✅ Записано: {info}\n📌 Вид: {selection}\n(тук ще запишем в Airtable)"
 
-(тук ще запишем в Airtable)"
         )
         # тук може да добавим логика за запис в Airtable
         # и да изчистим user_states[user_id]
