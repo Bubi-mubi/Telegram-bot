@@ -61,8 +61,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     transaction_types = get_transaction_types()
     keyboard = build_keyboard(transaction_types)
     if not transaction_types:
-    await update.message.reply_text("⚠️ Няма налични типове транзакции от Airtable.")
-    return
+        await update.message.reply_text("⚠️ Няма налични типове транзакции от Airtable.")
+        return
     await update.message.reply_text("📌 За какъв вид транзакция се отнася?", reply_markup=keyboard)
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
