@@ -1,11 +1,8 @@
-from email.mime import text
+import os
 import re
 import requests
 from datetime import datetime
 import telebot
-
-# Конфигурация – въведете вашите токени/ключове
-import os
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 AIRTABLE_PERSONAL_ACCESS_TOKEN = os.getenv("AIRTABLE_PERSONAL_ACCESS_TOKEN")
