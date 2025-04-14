@@ -7,7 +7,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, Messa
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 AIRTABLE_TOKEN = os.getenv("AIRTABLE_PERSONAL_ACCESS_TOKEN")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
-AIRTABLE_TABLE_NAME = "Транзакции"
+AIRTABLE_TABLE_NAME = "Отчет телеграм"
 AIRTABLE_FIELD_NAME = "ВИД"
 
 user_states = {}
