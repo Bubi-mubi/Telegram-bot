@@ -187,6 +187,12 @@ def handle_transaction_type_selection(call):
 def handle_edit(message):
     """Редактиране на съществуващ запис."""
     user_id = message.chat.id
+    # ✅ Добавяме "ВИД", ако е избран
+    if user_id in user_pending_type:
+        selected_type = user_pending_type[user_id].get("selected")
+        if selected_type:
+            fields["ВИД"] = selected_type
+            del user_pending_type[user_id]
     if user_id in user_records and user_records[user_id]:
         # Покажете на потребителя списък с неговите записи
         records = user_records[user_id]
@@ -629,7 +635,7 @@ if user_id in user_pending_type:
     selected_type = user_pending_type[user_id].get("selected")
     if selected_type:
         fields["ВИД"] = selected_type
-        del user_pending_type[user_id]  # почистваме го
+        del user_pending_type[user_id]
 
     if currency_code == "BGN":
         fields["Сума (лв.)"] = amount
