@@ -662,6 +662,9 @@ def handle_message(message):
         bot.reply_to(message, reply_text)
         print(f"Failed to create record: HTTP {res_post.status_code} - {error_msg}")
 
+import time
+time.sleep(3)
+
 # Стартиране на бота
 print("🤖 Bot is polling...")
 # Завършваме първоначалното пускане на бота
