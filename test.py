@@ -74,7 +74,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         selection = data.replace("select_", "")
         info = user_states.get(user_id, {}).get("entry", "няма сума/акаунт")
         await query.edit_message_text(
-            f"✅ Записано: {info}
+            f"✅ Записано: {info}\n📌 Вид: {selection}\n(тук ще запишем в Airtable)"
 📌 Вид: {selection}
 (тук ще запишем в Airtable)"
         )
