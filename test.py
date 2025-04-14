@@ -1,6 +1,66 @@
 import os
 import requests
 import base64
+
+import re
+
+TABLE_ACCOUNTS = "ВСИЧКИ АКАУНТИ"
+TABLE_REPORTS = "Отчет Телеграм"
+
+url_accounts = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{TABLE_ACCOUNTS}"
+url_reports = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{TABLE_REPORTS}"
+
+headers = {
+    "Authorization": f"Bearer {AIRTABLE_API_KEY}",
+    "Content-Type": "application/json"
+}
+
+def normalize_text(text):
+    text = text.lower()
+    text = re.sub(r'[^a-zа-я0-9\s]', '', text)
+    return text
+
+def find_account(account_name):
+    normalized_account_name = normalize_text(account_name)
+    search_terms = normalized_account_name.strip().split()
+    conditions = [f'SEARCH("{term}", LOWER({{REG}})) > 0' for term in search_terms]
+    formula = f'AND({",".join(conditions)})'
+    params = {"filterByFormula": formula}
+
+    res = requests.get(url_accounts, headers=headers, params=params)
+    if res.status_code == 200:
+        data = res.json()
+        records = data.get("records", [])
+        if records:
+            return records[0]["id"]
+    return None
+
+def parse_transaction(text):
+    text = text.strip()
+    text = text.replace('za', 'за').replace('ot', 'от')
+
+    amount = None
+    currency_code = None
+    description = ""
+    account_name = None
+    is_expense = False
+
+    pre_acc = text
+    if re.search(r'(?i)\bот\b', text):
+        parts = text.rsplit(" от ", 1)
+        pre_acc = parts[0].strip()
+        account_name = parts[1].strip()
+
+    match = re.match(r"(\d+(?:[.,]\d{1,2})?)\s*(лв|лев|bgn)?\s*за\s*(.+)", pre_acc, re.IGNORECASE)
+    if match:
+        amount_str, currency, desc = match.groups()
+        amount = float(amount_str.replace(",", "."))
+        description = desc.strip()
+        currency_code = currency.upper() if currency else "BGN"
+        is_expense = True
+
+    return amount, currency_code, description, account_name, is_expense
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, CallbackQueryHandler
 
