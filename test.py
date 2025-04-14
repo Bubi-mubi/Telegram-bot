@@ -27,7 +27,6 @@ user_records = {}
 
 # Словар за запазване на избрания запис за редактиране
 user_editing = {}
-user_pending_type = {}  # Речник за избор на ВИД
 
 def normalize_text(text):
     """Привежда текста в малки букви и премахва специални символи."""
@@ -519,9 +518,6 @@ def handle_message(message):
     text = message.text  # Получаваме текста от съобщението
     user_name = message.from_user.first_name  # Извличаме името на потребителя
     user_id = message.chat.id  # ID на потребителя в чата
-
-    if user_id in user_pending_type and user_pending_type[user_id].get("selected"):
-        fields["ВИД"] = user_pending_type[user_id]["selected"]
     """Обработва всяко получено текстово съобщение като финансов отчет."""
 
     # Вземаме текущата дата и час в желания формат
@@ -627,52 +623,4 @@ def handle_message(message):
 # Стартиране на бота
 print("🤖 Bot is polling...")
 # Завършваме първоначалното пускане на бота
-bot.polling(none_stop=True)
-
-# Зареждаме токените и ключовете директно за удобство (ако не използвате .env файл)
-TELEGRAM_BOT_TOKEN = "7970130151:AAHAR3P7aCPmjBkLeXieYB6kWGa0JMHXuT4"  # Telegram Bot API токен
-AIRTABLE_PERSONAL_ACCESS_TOKEN = "patFcdjRFIBDT6AbQ.7871cfd63a7b6db9bb41b480c677942e6d4f2f810597feb1ec16fd7c6c3423a1"  # Airtable Personal Access Token
-AIRTABLE_BASE_ID = "app48TkG8A1C2U0Fg"  # ID на Airtable базата
-TABLE_ACCOUNTS = "ВСИЧКИ АКАУНТИ"
-TABLE_REPORTS = "Отчет Телеграм"
-
-from telebot import types
-
-# Речник за съхраняване на избрания ВИД за всеки потребител
-user_pending_type = {}
-
-def get_transaction_types():
-    # Статично дефинирани видове – може да се заменят с динамични от Airtable
-    return [
-        "Proxy", "New SIM card UK", "Office supplies",
-        "Ivelin money", "GSM", "Такси", "Пътуване", "Други"
-    ]
-
-@bot.message_handler(commands=['settype'])
-def ask_transaction_type(message):
-    # Показва бутони с видове транзакции
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    types_list = get_transaction_types()
-    buttons = [types.InlineKeyboardButton(text=typ, callback_data=typ) for typ in types_list]
-    markup.add(*buttons)
-
-    msg = bot.send_message(message.chat.id, "📌 Избери вид на транзакцията:", reply_markup=markup)
-    user_pending_type[message.chat.id] = {"msg_id": msg.message_id}
-
-@bot.callback_query_handler(func=lambda call: call.data in get_transaction_types())
-def handle_transaction_type_selection(call):
-    user_id = call.message.chat.id
-    selected_type = call.data
-
-    bot.answer_callback_query(call.id)
-    bot.edit_message_text(
-        chat_id=user_id,
-        message_id=user_pending_type[user_id]["msg_id"],
-        text=f"✅ Избра вид: {selected_type}"
-    )
-
-    user_pending_type[user_id]["selected"] = selected_type
-
-# Стартиране на бота
-print("🤖 Bot is polling...")
 bot.polling(none_stop=True)
