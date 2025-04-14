@@ -1,9 +1,12 @@
 import os
 import requests
 import base64
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, CallbackQueryHandler
 
-import re
-
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+AIRTABLE_TOKEN = os.getenv("AIRTABLE_PERSONAL_ACCESS_TOKEN")
+AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
 TABLE_ACCOUNTS = "ВСИЧКИ АКАУНТИ"
 TABLE_REPORTS = "Отчет Телеграм"
 
