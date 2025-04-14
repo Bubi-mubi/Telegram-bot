@@ -5,9 +5,11 @@ from datetime import datetime
 import telebot
 
 # Конфигурация – въведете вашите токени/ключове
-TELEGRAM_BOT_TOKEN = ("TELEGRAM_BOT_TOKEN")
-AIRTABLE_PERSONAL_ACCESS_TOKEN = ("AIRTABLE_PERSONAL_ACCESS_TOKEN")
-AIRTABLE_BASE_ID = ("AIRTABLE_BASE_ID")  # ID на Airtable базата
+import os
+
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+AIRTABLE_PERSONAL_ACCESS_TOKEN = os.getenv("AIRTABLE_PERSONAL_ACCESS_TOKEN")
+AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")  # ID на Airtable базата
 TABLE_ACCOUNTS = "ВСИЧКИ АКАУНТИ"
 TABLE_REPORTS = "Отчет Телеграм"
 
