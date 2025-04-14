@@ -5,9 +5,9 @@ from datetime import datetime
 import telebot
 
 # Конфигурация – въведете вашите токени/ключове
-TELEGRAM_BOT_TOKEN = "7970130151:AAHAR3P7aCPmjBkLeXieYB6kWGa0JMHXuT4"  # Telegram Bot API токен
-AIRTABLE_PERSONAL_ACCESS_TOKEN = "patFcdjRFIBDT6AbQ.7871cfd63a7b6db9bb41b480c677942e6d4f2f810597feb1ec16fd7c6c3423a1"  # Airtable Personal Access Token
-AIRTABLE_BASE_ID = "app48TkG8A1C2U0Fg"  # ID на Airtable базата
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+AIRTABLE_PERSONAL_ACCESS_TOKEN = os.getenv("AIRTABLE_PERSONAL_ACCESS_TOKEN")
+AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")  # ID на Airtable базата
 TABLE_ACCOUNTS = "ВСИЧКИ АКАУНТИ"
 TABLE_REPORTS = "Отчет Телеграм"
 
