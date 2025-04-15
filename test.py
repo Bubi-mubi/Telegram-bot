@@ -884,6 +884,8 @@ def handle_message(message):
 import time
 time.sleep(3)
 bot.remove_webhook()
+info = bot.get_webhook_info()
+print("🔍 Webhook info:", info.url)  # Това трябва да е празно
 # Стартиране на бота
 print("🤖 Bot is polling...")
 # Завършваме първоначалното пускане на бота
