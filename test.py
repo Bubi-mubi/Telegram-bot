@@ -62,20 +62,32 @@ def find_account(account_name):
             return account_id
     return None
 
+from datetime import datetime, timedelta
+
 def get_user_records_from_airtable(user_name):
-    """Извлича записите от Airtable за конкретен потребител."""
-    formula = f"{{Име на потребителя}} = '{user_name}'"
+    """Извлича записите от последните 60 минути от Airtable за конкретен потребител."""
+    now = datetime.now()
+    one_hour_ago = now - timedelta(minutes=60)
+    now_iso = now.isoformat()
+    hour_ago_iso = one_hour_ago.isoformat()
+
+    # Airtable filterByFormula търси по Име на потребителя и Дата (ISO формат)
+    formula = (
+        f"AND("
+        f"{{Име на потребителя}} = '{user_name}',"
+        f"IS_AFTER({{Дата}}, '{hour_ago_iso}')"
+        f")"
+    )
+
     params = {"filterByFormula": formula}
     res = requests.get(url_reports, headers=headers, params=params)
 
     if res.status_code == 200:
         data = res.json()
-        records = data.get("records", [])
-        return records
+        return data.get("records", [])
     else:
         print(f"❌ Грешка при извличане на записи: {res.status_code} - {res.text}")
         return []
-
 
 def parse_transaction(text):
     """
