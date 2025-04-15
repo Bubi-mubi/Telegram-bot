@@ -30,6 +30,7 @@ user_records = {}
 user_pending_type = {}
 
 # Словар за запазване на избрания запис за редактиране
+pending_transaction_data = {}  # временно съхраняваме парснатата транзакция
 user_editing = {}
 
 def normalize_text(text):
@@ -233,7 +234,45 @@ def handle_transaction_type_selection(call):
         message_id=user_pending_type[user_id]["msg_id"],
         text=f"✅ Избра вид: {selected_label}"
     )
+    # 📥 Ако има чакащи данни за транзакция — записваме в Airtable
+    if user_id in pending_transaction_data:
+        tx = pending_transaction_data[user_id]
+        account_id = find_account(tx["account_name"])
 
+        fields = {
+            "Дата": tx["datetime"],
+            "Описание": tx["description"],
+            "Име на потребителя": tx["user_name"],
+            "ВИД": [selected_id],
+        }
+
+        if tx["currency_code"] == "BGN":
+            fields["Сума (лв.)"] = tx["amount"]
+        elif tx["currency_code"] == "EUR":
+            fields["Сума (EUR)"] = tx["amount"]
+        elif tx["currency_code"] == "GBP":
+            fields["Сума (GBP)"] = tx["amount"]
+
+        if account_id:
+            fields["Акаунт"] = [account_id]
+        else:
+            fields["Описание"] = f"{tx['description']} (Акаунт: {tx['account_name']})"
+
+        data = {"fields": fields}
+        res_post = requests.post(url_reports, headers=headers, json=data)
+
+        if res_post.status_code in (200, 201):
+            record_id = res_post.json().get("id")
+            if user_id not in user_records:
+                user_records[user_id] = []
+            user_records[user_id].append(record_id)
+            bot.send_message(user_id, f"✅ Избра вид: {selected_label}\n📌 Отчетът е записан успешно.")
+        else:
+            bot.send_message(user_id, f"❌ Грешка при записването: {res_post.text}")
+
+        # 🧹 Изчистваме временното състояние
+        del pending_transaction_data[user_id]
+        del user_pending_type[user_id]
 
 
     # 💾 Запази избраното ID
@@ -627,10 +666,29 @@ def handle_message(message):
     user_id = message.chat.id
     user_name = message.from_user.first_name
     current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # ⬅️ добави това тук
+    
+    # 📌 1. Парсване на транзакцията
+    amount, currency_code, description, account_name, is_expense = parse_transaction(text)
+        if amount is None or currency_code is None or description == "":
+        reply_text = ("⚠️ Неразпознат формат. Моля, използвайте формат като:\n"
+                      "`100 лв. за <описание> от <акаунт>`")
+        bot.reply_to(message, reply_text, parse_mode="Markdown")
+        return
 
-    # 📌 1. Проверката за избран ВИД
+    # 📌 2. Проверката за избран ВИД
     types_list = get_transaction_types_from_airtable()
-    if user_id not in user_pending_type or not user_pending_type[user_id].get("selected"):
+        if user_id not in user_pending_type or not user_pending_type[user_id].get("selected"):
+        # 💾 Записваме парснатата транзакция, за да я използваме след избора
+        pending_transaction_data[user_id] = {
+            "amount": amount,
+            "currency_code": currency_code,
+            "description": description,
+            "account_name": account_name,
+            "is_expense": is_expense,
+            "user_name": user_name,
+            "datetime": current_datetime,
+        }
+
         if types_list:
             markup = types.InlineKeyboardMarkup(row_width=2)
             buttons = [types.InlineKeyboardButton(text=typ, callback_data=typ) for typ in types_list]
@@ -641,16 +699,7 @@ def handle_message(message):
                 "msg_id": msg.message_id,
                 "options": get_transaction_type_options()
             }
-            return  # ⛔ Спираме тук, ще продължи след избора на потребителя
-
-    # 📌 2. Парсване на транзакцията
-    amount, currency_code, description, account_name, is_expense = parse_transaction(text)
-
-    if amount is None or currency_code is None or description == "":
-        reply_text = ("⚠️ Неразпознат формат. Моля, използвайте формат като:\n"
-                      "`100 лв. за <описание> от <акаунт>`")
-        bot.reply_to(message, reply_text, parse_mode="Markdown")
-        return
+        return  # ⛔ Спираме до избора на тип
 
     # 📌 3. Извличане на акаунта
     account_part = ""
