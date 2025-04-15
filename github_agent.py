@@ -2,7 +2,7 @@ import base64
 import requests
 import os
 
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+GITHUB_TOKEN = os.getenv("GH_TOKEN")
 REPO = "Bubi-mubi/Telegram-bot"
 FILE_PATH = "test.py"
 BRANCH = "main"
