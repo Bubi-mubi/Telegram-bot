@@ -213,28 +213,57 @@ def get_transaction_type_options():
         print("❌ Грешка при зареждане на видовете транзакции:", res.text)
         return {}
 
+def show_filtered_transaction_types(message):
+    keyword = message.text.strip().lower()
+    user_id = message.chat.id
+
+    all_types = get_transaction_types()
+    filtered = {
+        name: id_ for name, id_ in all_types.items()
+        if keyword in name.lower()
+    }
+
+    if not filtered:
+        bot.send_message(user_id, "❌ Няма съвпадения. Опитай с друга дума.")
+        return
+
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    buttons = [types.InlineKeyboardButton(text=key, callback_data=key) for key in filtered]
+    markup.add(*buttons)
+
+    msg = bot.send_message(user_id, f"📌 Резултати за „{keyword}“:", reply_markup=markup)
+
+    user_pending_type[user_id] = {
+        "msg_id": msg.message_id,
+        "options": filtered
+    }
+
+
 @bot.message_handler(commands=['settype'])
 def ask_transaction_type(message):
-    markup = types.InlineKeyboardMarkup(row_width=2)  # ❗ липсва
     transaction_types = get_transaction_types()
+    markup = types.InlineKeyboardMarkup(row_width=2)
+
     buttons = [
         types.InlineKeyboardButton(text=name, callback_data=name)
         for name in transaction_types.keys()
     ]
-
     markup.add(*buttons)
+
+    # ➕ Добавяме бутон за филтриране
+    markup.add(types.InlineKeyboardButton(text="🔍 Филтрирай по дума", callback_data="FILTER_BY_KEYWORD"))
 
     msg = bot.send_message(
         message.chat.id,
-        "📌 Избери вид на транзакцията:",
+        "📌 Избери ВИД на транзакцията или 🔍 филтрирай по дума:",
         reply_markup=markup
     )
 
-    # 👇 Записваме и ID-тата на транзакциите
     user_pending_type[message.chat.id] = {
         "msg_id": msg.message_id,
         "options": transaction_types
     }
+
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_transaction_type_selection(call):
@@ -245,6 +274,13 @@ def handle_transaction_type_selection(call):
     if user_id not in user_pending_type:
         bot.answer_callback_query(call.id, "❌ Няма очаквана транзакция.")
         return
+
+    if call.data == "FILTER_BY_KEYWORD":
+        bot.answer_callback_query(call.id)
+        bot.send_message(user_id, "🔍 Въведи дума за филтриране:")
+        bot.register_next_step_handler(call.message, show_filtered_transaction_types)
+        return
+
         
     print(f"📌 user_id: {user_id}")
     print(f"📌 selected_label: {selected_label}")
@@ -278,6 +314,7 @@ def handle_transaction_type_selection(call):
             "Име на потребителя": tx["user_name"],
             "ВИД": [selected_id],
         }
+
 
         if tx["currency_code"] == "BGN":
             fields["Сума (лв.)"] = tx["amount"]
