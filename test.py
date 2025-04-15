@@ -795,17 +795,7 @@ def handle_message(message):
             "datetime": current_datetime,
         }
 
-        if types_list:
-            markup = types.InlineKeyboardMarkup(row_width=2)
-            buttons = [types.InlineKeyboardButton(text=typ, callback_data=typ) for typ in types_list]
-            markup.add(*buttons)
-
-            msg = bot.send_message(user_id, "📌 Моля, изберете ВИД на транзакцията:", reply_markup=markup)
-            user_pending_type[user_id] = {
-                "msg_id": msg.message_id,
-                "options": get_transaction_type_options()
-            }
-        return  # ⛔ Спираме до избора на тип
+        send_transaction_type_page(chat_id=user_id, page=0)
 
     # 📌 3. Извличане на акаунта
     account_part = ""
