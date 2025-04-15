@@ -148,7 +148,6 @@ import requests
 
 def get_transaction_types():
     return get_transaction_types_from_airtable()
-    ]
 
 from telebot import types  # Увери се, че този импорт е наличен!
 
