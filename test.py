@@ -678,7 +678,7 @@ def handle_message(message):
 
     # 📌 2. Проверката за избран ВИД
     types_list = get_transaction_types_from_airtable()
-        if user_id not in user_pending_type or not user_pending_type[user_id].get("selected"):
+    if user_id not in user_pending_type or not user_pending_type[user_id].get("selected"):
         # 💾 Записваме парснатата транзакция, за да я използваме след избора
         pending_transaction_data[user_id] = {
             "amount": amount,
