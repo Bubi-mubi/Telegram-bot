@@ -62,6 +62,21 @@ def find_account(account_name):
             return account_id
     return None
 
+def get_user_records_from_airtable(user_name):
+    """Извлича записите от Airtable за конкретен потребител."""
+    formula = f"{{Име на потребителя}} = '{user_name}'"
+    params = {"filterByFormula": formula}
+    res = requests.get(url_reports, headers=headers, params=params)
+
+    if res.status_code == 200:
+        data = res.json()
+        records = data.get("records", [])
+        return records
+    else:
+        print(f"❌ Грешка при извличане на записи: {res.status_code} - {res.text}")
+        return []
+
+
 def parse_transaction(text):
     """
     Парсване на съобщение от вида "<сума> <валута> за <описание> от <акаунт>".
@@ -281,55 +296,39 @@ def handle_transaction_type_selection(call):
 # Обработчик за командата "/edit"
 @bot.message_handler(commands=['edit'])
 def handle_edit(message):
-    """Редактиране на съществуващ запис."""
     user_id = message.chat.id
-    # ✅ Добавяме "ВИД", ако е избран
-    # Преди изпращане към Airtable
-    
-    if user_id in user_pending_type:
-        selected_type_id = user_pending_type[user_id].get("selected")
-        if selected_type_id:
-            fields["ВИД"] = [selected_type_id]  # ⚠️ Важно: списък с ID-то
-            del user_pending_type[user_id]
+    user_name = message.from_user.first_name
 
+    records = get_user_records_from_airtable(user_name)
 
-    if user_id in user_records and user_records[user_id]:
-        # Покажете на потребителя списък с неговите записи
-        records = user_records[user_id]
-        reply_text = "Вашите записи:\n"
-        for i, record_id in enumerate(records, 1):
-            # Извличане на подробности за записите от Airtable
-            record_url = f"{url_reports}/{record_id}"
-            res = requests.get(record_url, headers=headers)
-            if res.status_code == 200:
-                data = res.json()
-                record_fields = data.get("fields", {})
-                description = record_fields.get("Описание", "Без описание")
-                amount = record_fields.get("Сума (лв.)", "Неопределена сума")
-                account_id = record_fields.get("Акаунт", "Неизвестен акаунт")
-
-                # Извличане на името на акаунта
-                if isinstance(account_id, list) and account_id:
-                    account_url = f"{url_accounts}/{account_id[0]}"
-                    res_account = requests.get(account_url, headers=headers)
-                    if res_account.status_code == 200:
-                        account_data = res_account.json()
-                        account_name = account_data.get("fields", {}).get("REG", "Неизвестен акаунт")
-                    else:
-                        account_name = "Неизвестен акаунт"
-                else:
-                    account_name = "Неизвестен акаунт"
-                
-                # Показваме целия запис в едно съобщение
-                full_text = f"{amount} {description} от {account_name}"
-                reply_text += f"{i}. Запис {record_id} - {full_text}\n"
-            else:
-                reply_text += f"{i}. Запис {record_id} - Неуспешно извличане на данни.\n"
-        
-        sent_msg = bot.reply_to(message, reply_text + "Изберете номер на запис за редактиране (например /edit 1):")
-        bot.register_next_step_handler(sent_msg, process_edit_choice)
-    else:
+    if not records:
         bot.reply_to(message, "❌ Няма записи за редактиране.")
+        return
+
+    user_records[user_id] = [r["id"] for r in records]
+
+    reply_text = "Вашите записи:\n"
+    for i, record in enumerate(records, 1):
+        record_id = record["id"]
+        fields = record.get("fields", {})
+        description = fields.get("Описание", "Без описание")
+        amount = fields.get("Сума (лв.)", fields.get("Сума (EUR)", fields.get("Сума (GBP)", "Неопределена сума")))
+        account_name = "Неизвестен акаунт"
+
+        # Ако има акаунт, извличаме името
+        account_ids = fields.get("Акаунт", [])
+        if isinstance(account_ids, list) and account_ids:
+            acc_res = requests.get(f"{url_accounts}/{account_ids[0]}", headers=headers)
+            if acc_res.status_code == 200:
+                acc_data = acc_res.json()
+                account_name = acc_data.get("fields", {}).get("REG", "Неизвестен акаунт")
+
+        full_text = f"{amount} {description} от {account_name}"
+        reply_text += f"{i}. Запис {record_id} - {full_text}\n"
+
+    sent_msg = bot.reply_to(message, reply_text + "Изберете номер на запис за редактиране (напр. /edit 1):")
+    bot.register_next_step_handler(sent_msg, process_edit_choice)
+
 
 def update_amount(message):
     """Обработва новата стойност на сумата и актуализира запис в Airtable."""
@@ -394,48 +393,38 @@ def update_amount(message):
         
 @bot.message_handler(commands=['delete'])
 def handle_delete(message):
-    """Изтриване на съществуващ запис."""
     user_id = message.chat.id
-    
-    if user_id in user_records and user_records[user_id]:
-        # Покажете на потребителя списък с неговите записи
-        records = user_records[user_id]
-        reply_text = "Вашите записи за изтриване:\n"
-        
-        for i, record_id in enumerate(records, 1):
-            # Извличане на подробности за записите от Airtable
-            record_url = f"{url_reports}/{record_id}"
-            res = requests.get(record_url, headers=headers)
-            if res.status_code == 200:
-                data = res.json()
-                record_fields = data.get("fields", {})
-                description = record_fields.get("Описание", "Без описание")
-                amount = record_fields.get("Сума (лв.)", "Неопределена сума")
-                account_id = record_fields.get("Акаунт", "Неизвестен акаунт")
+    user_name = message.from_user.first_name
 
-                # Извличане на името на акаунта
-                if isinstance(account_id, list) and account_id:
-                    account_url = f"{url_accounts}/{account_id[0]}"
-                    res_account = requests.get(account_url, headers=headers)
-                    if res_account.status_code == 200:
-                        account_data = res_account.json()
-                        account_name = account_data.get("fields", {}).get("REG", "Неизвестен акаунт")
-                    else:
-                        account_name = "Неизвестен акаунт"
-                else:
-                    account_name = "Неизвестен акаунт"
-                
-                # Показваме целия запис в едно съобщение
-                full_text = f"{amount} {description} от {account_name}"
-                reply_text += f"{i}. Запис {record_id} - {full_text}\n"
-            else:
-                reply_text += f"{i}. Запис {record_id} - Неуспешно извличане на данни.\n"
-        
-        # Изпращаме списъка със записи и запитваме за номер на запис за изтриване
-        sent_msg = bot.reply_to(message, reply_text + "Изберете номер на запис за изтриване (например /delete 1):")
-        bot.register_next_step_handler(sent_msg, process_delete_choice)
-    else:
+    records = get_user_records_from_airtable(user_name)
+
+    if not records:
         bot.reply_to(message, "❌ Няма записи за изтриване.")
+        return
+
+    user_records[user_id] = [r["id"] for r in records]
+
+    reply_text = "Вашите записи за изтриване:\n"
+    for i, record in enumerate(records, 1):
+        record_id = record["id"]
+        fields = record.get("fields", {})
+        description = fields.get("Описание", "Без описание")
+        amount = fields.get("Сума (лв.)", fields.get("Сума (EUR)", fields.get("Сума (GBP)", "Неопределена сума")))
+        account_name = "Неизвестен акаунт"
+
+        account_ids = fields.get("Акаунт", [])
+        if isinstance(account_ids, list) and account_ids:
+            acc_res = requests.get(f"{url_accounts}/{account_ids[0]}", headers=headers)
+            if acc_res.status_code == 200:
+                acc_data = acc_res.json()
+                account_name = acc_data.get("fields", {}).get("REG", "Неизвестен акаунт")
+
+        full_text = f"{amount} {description} от {account_name}"
+        reply_text += f"{i}. Запис {record_id} - {full_text}\n"
+
+    sent_msg = bot.reply_to(message, reply_text + "Изберете номер на запис за изтриване (напр. /delete 1):")
+    bot.register_next_step_handler(sent_msg, process_delete_choice)
+
 
 
 def process_delete_choice(message):
