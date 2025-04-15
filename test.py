@@ -300,32 +300,31 @@ def handle_transaction_type_selection(call):
         bot.register_next_step_handler(call.message, show_filtered_transaction_types)
         return
 
-        
     print(f"📌 user_id: {user_id}")
     print(f"📌 selected_label: {selected_label}")
     print(f"📌 user_pending_type: {user_pending_type.get(user_id)}")
-    
-    if selected_label in ["__next", "__prev", "__filter"]:
-        pass  # Ще обработим по-надолу
-    elif selected_label not in user_pending_type[user_id]["options"]:
-        bot.answer_callback_query(call.id, "❌ Невалиден избор.")
-        return
 
-    selected_id = user_pending_type[user_id]["options"].get(selected_label)
-
-
+    # 🔄 Навигация и филтриране
     if selected_label == "__prev":
         current_page = user_pending_type[user_id].get("page", 0)
         new_page = max(current_page - 1, 0)
         bot.delete_message(user_id, user_pending_type[user_id]["msg_id"])
-        send_transaction_type_page(chat_id=user_id, page=new_page, filtered_types=user_pending_type[user_id].get("filtered"))
+        send_transaction_type_page(
+            chat_id=user_id,
+            page=new_page,
+            filtered_types=user_pending_type[user_id].get("filtered")
+        )
         return
 
     elif selected_label == "__next":
         current_page = user_pending_type[user_id].get("page", 0)
         new_page = current_page + 1
         bot.delete_message(user_id, user_pending_type[user_id]["msg_id"])
-        send_transaction_type_page(chat_id=user_id, page=new_page, filtered_types=user_pending_type[user_id].get("filtered"))
+        send_transaction_type_page(
+            chat_id=user_id,
+            page=new_page,
+            filtered_types=user_pending_type[user_id].get("filtered")
+        )
         return
 
     elif selected_label == "__filter":
@@ -338,6 +337,64 @@ def handle_transaction_type_selection(call):
         bot.answer_callback_query(call.id)
         send_transaction_type_page(chat_id=user_id, page=0)
         return
+
+    # ✅ Проверка дали е валиден тип
+    if selected_label not in user_pending_type[user_id]["options"]:
+        bot.answer_callback_query(call.id, "❌ Невалиден избор.")
+        return
+
+    selected_id = user_pending_type[user_id]["options"].get(selected_label)
+
+    # 💾 Запази избора
+    user_pending_type[user_id]["selected"] = selected_id
+    user_pending_type[user_id]["selected_label"] = selected_label
+
+    # ✅ Покажи избраното
+    bot.edit_message_text(
+        chat_id=user_id,
+        message_id=user_pending_type[user_id]["msg_id"],
+        text=f"✅ Избра вид: {selected_label}"
+    )
+
+    # 📥 Ако има чакащи данни за транзакция — записваме в Airtable
+    if user_id in pending_transaction_data:
+        tx = pending_transaction_data[user_id]
+        account_id = find_account(tx["account_name"])
+
+        fields = {
+            "Дата": tx["datetime"],
+            "Описание": tx["description"],
+            "Име на потребителя": tx["user_name"],
+            "ВИД": [selected_id],
+        }
+
+        if tx["currency_code"] == "BGN":
+            fields["Сума (лв.)"] = tx["amount"]
+        elif tx["currency_code"] == "EUR":
+            fields["Сума (EUR)"] = tx["amount"]
+        elif tx["currency_code"] == "GBP":
+            fields["Сума (GBP)"] = tx["amount"]
+
+        if account_id:
+            fields["Акаунт"] = [account_id]
+        else:
+            fields["Описание"] = f"{tx['description']} (Акаунт: {tx['account_name']})"
+
+        data = {"fields": fields}
+        res_post = requests.post(url_reports, headers=headers, json=data)
+
+        if res_post.status_code in (200, 201):
+            record_id = res_post.json().get("id")
+            if user_id not in user_records:
+                user_records[user_id] = []
+            user_records[user_id].append(record_id)
+            bot.send_message(user_id, f"✅ Избра вид: {selected_label}\n📌 Отчетът е записан успешно.")
+        else:
+            bot.send_message(user_id, f"❌ Грешка при записването: {res_post.text}")
+
+        # 🧹 Изчистваме временното състояние
+        del pending_transaction_data[user_id]
+        del user_pending_type[user_id]
 
 
 
