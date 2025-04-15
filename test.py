@@ -9,6 +9,7 @@ AIRTABLE_PERSONAL_ACCESS_TOKEN = os.getenv("AIRTABLE_PERSONAL_ACCESS_TOKEN")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")  # ID на Airtable базата
 TABLE_ACCOUNTS = "ВСИЧКИ АКАУНТИ"
 TABLE_REPORTS = "Отчет Телеграм"
+TABLE_TRANSACTION_TYPES = "ВИД ТРАНЗАКЦИЯ"
 
 # Подготовка на URL и headers за Airtable API
 url_accounts = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{TABLE_ACCOUNTS}"
@@ -154,6 +155,19 @@ def get_transaction_types():
 
 from telebot import types  # Увери се, че този импорт е наличен!
 
+def get_transaction_types_from_airtable():
+    url_types = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{TABLE_TRANSACTION_TYPES}"
+    params = {"fields[]": ["ТРАНЗАКЦИЯ"]}
+    res = requests.get(url_types, headers=headers, params=params)
+
+    if res.status_code == 200:
+        data = res.json()
+        options = [record["fields"]["ТРАНЗАКЦИЯ"] for record in data["records"] if "ТРАНЗАКЦИЯ" in record["fields"]]
+        return options
+    else:
+        print(f"⚠️ Error loading types: {res.status_code} - {res.text}")
+        return []
+
 @bot.message_handler(commands=['settype'])
 def ask_transaction_type(message):
     markup = types.InlineKeyboardMarkup(row_width=2)
@@ -164,7 +178,7 @@ def ask_transaction_type(message):
     msg = bot.send_message(message.chat.id, "📌 Избери вид на транзакцията:", reply_markup=markup)
     user_pending_type[message.chat.id] = {"msg_id": msg.message_id}
 
-@bot.callback_query_handler(func=lambda call: call.data in get_transaction_types())
+@bot.callback_query_handler(func=lambda call: call.data in get_transaction_types_from_airtable())
 def handle_transaction_type_selection(call):
     user_id = call.message.chat.id
     selected_type = call.data
@@ -177,7 +191,6 @@ def handle_transaction_type_selection(call):
     )
 
     user_pending_type[user_id]["selected"] = selected_type
-
 
 # Обработчик за командата "/edit"
 @bot.message_handler(commands=['edit'])
@@ -577,6 +590,18 @@ def handle_message(message):
                       "`100 лв. за <описание> от <акаунт>`")
         bot.reply_to(message, reply_text, parse_mode="Markdown")
         return
+
+    # Ако потребителят все още не е избрал ВИД, предложи избор с бутони
+    if user_id not in user_pending_type or not user_pending_type[user_id].get("selected"):
+        types_list = get_transaction_types_from_airtable()
+        if types_list:
+            markup = types.InlineKeyboardMarkup(row_width=2)
+            buttons = [types.InlineKeyboardButton(text=typ, callback_data=typ) for typ in types_list]
+            markup.add(*buttons)
+
+            msg = bot.send_message(message.chat.id, "📌 Моля, изберете ВИД на транзакцията:", reply_markup=markup)
+            user_pending_type[message.chat.id] = {"msg_id": msg.message_id}
+            return  # изчакваме потребителя да избере тип, и после ще повтори съобщението
 
     # Извличаме само частта след "от" или "ot"
     account_part = ""
