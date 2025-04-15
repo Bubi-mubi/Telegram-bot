@@ -4,6 +4,7 @@ import requests
 from datetime import datetime
 import telebot
 from telebot import types  # ⬅️ тук
+import time
 
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
