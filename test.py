@@ -256,7 +256,6 @@ def send_transaction_type_page(chat_id, page=0, filtered_types=None):
     PAGE_SIZE = 20
     all_types = filtered_types if filtered_types is not None else get_transaction_types()
     sorted_keys = sorted(all_types.keys())
-    total_pages = (len(sorted_keys) - 1) // PAGE_SIZE + 1
     start = page * PAGE_SIZE
     end = start + PAGE_SIZE
     current_page_keys = sorted_keys[start:end]
@@ -272,15 +271,15 @@ def send_transaction_type_page(chat_id, page=0, filtered_types=None):
                 row_buttons.append(types.InlineKeyboardButton(text=key, callback_data=key))
         markup.add(*row_buttons)
 
-    # 🔄 Навигация (различен стил с емоджи)
+    # 🔄 Навигация (с емоджи)
     nav_buttons = []
-    if page > 0:
-        nav_buttons.append(types.InlineKeyboardButton("⬅️ Назад", callback_data="__prev"))
     if end < len(sorted_keys):
         nav_buttons.append(types.InlineKeyboardButton("➡️ Напред", callback_data="__next"))
+    if page > 0:
+        nav_buttons.append(types.InlineKeyboardButton("⬅️ Назад", callback_data="__prev"))
     if nav_buttons:
         markup.add(*nav_buttons)
-
+        
     # 🔍 Филтър бутон със стил
     markup.add(types.InlineKeyboardButton("🔍 Въведи ключова дума 🔍", callback_data="__filter"))
 
