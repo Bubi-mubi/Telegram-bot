@@ -392,6 +392,11 @@ def handle_transaction_type_selection(call):
         else:
             fields["Описание"] = f"{tx['description']} (Акаунт: {tx['account_name']})"
 
+        # 👉 ЛИПСВАЩО: изпращане към Airtable
+        data = {"fields": fields}
+        res_post = requests.post(url_reports, headers=headers, json=data)
+
+
         if res_post.status_code in (200, 201):
             record_id = res_post.json().get("id")
             if user_id not in user_records:
@@ -872,22 +877,6 @@ def handle_message(message):
     # Добавяме името на потребителя
     fields["Име на потребителя"] = user_name  # Добавяме името на потребителя в новото поле
     
-    # Изпращаме данните към Airtable
-    data = {"fields": fields}
-    res_post = requests.post(url_reports, headers=headers, json=data)
-    if res_post.status_code in (200, 201):
-        record_id = res_post.json().get("id")  # Получаваме ID на създадения запис
-        # Добавяме запис в списъка с всички записи на потребителя
-        if message.chat.id not in user_records:
-            user_records[message.chat.id] = []
-        user_records[message.chat.id].append(record_id)
-        reply_text = "✅ Отчетът е записан успешно."
-        bot.reply_to(message, reply_text)
-    else:
-        error_msg = res_post.text
-        reply_text = "❌ Грешка при записването на отчета!"
-        bot.reply_to(message, reply_text)
-        print(f"Failed to create record: HTTP {res_post.status_code} - {error_msg}")
 
 WEBHOOK_URL = f"{os.getenv('WEBHOOK_BASE_URL')}/bot{TELEGRAM_BOT_TOKEN}"
 
