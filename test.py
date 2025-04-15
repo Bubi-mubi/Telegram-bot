@@ -3,6 +3,8 @@ import re
 import requests
 from datetime import datetime
 import telebot
+from telebot import types  # ⬅️ тук
+
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 AIRTABLE_PERSONAL_ACCESS_TOKEN = os.getenv("AIRTABLE_PERSONAL_ACCESS_TOKEN")
@@ -167,8 +169,25 @@ def get_transaction_types():
 
     return types_dict
 
+def get_transaction_type_options():
+    """Извлича всички видове транзакции от таблицата 'ВИД ТРАНЗАКЦИЯ'."""
+    url_type = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/ВИД ТРАНЗАКЦИЯ"
+    res = requests.get(url_type, headers=headers)
+    if res.status_code == 200:
+        data = res.json()
+        options = {}
+        for record in data.get("records", []):
+            label = record["fields"].get("ТРАНЗАКЦИЯ")
+            if label:
+                options[label] = record["id"]
+        return options
+    else:
+        print("❌ Грешка при зареждане на видовете транзакции:", res.text)
+        return {}
+
 @bot.message_handler(commands=['settype'])
 def ask_transaction_type(message):
+    markup = types.InlineKeyboardMarkup(row_width=2)  # ❗ липсва
     transaction_types = get_transaction_types()
     buttons = [
         types.InlineKeyboardButton(text=name, callback_data=name)
@@ -190,37 +209,35 @@ def ask_transaction_type(message):
     }
 
 @bot.callback_query_handler(func=lambda call: True)
-@bot.callback_query_handler(func=lambda call: call.data in user_pending_type.get(call.message.chat.id, {}).get("options", {}))
 def handle_transaction_type_selection(call):
-    user_id = call.message.chat.id  # ✅ ТОВА ТРЯБВА ДА СТОИ НАЧАЛОТО
+    user_id = call.message.chat.id
+    selected_label = call.data
 
-    selected_type = call.data
-    selected_id = user_pending_type[user_id]["options"].get(selected_type)
+    if user_id not in user_pending_type:
+        bot.answer_callback_query(call.id, "❌ Няма очаквана транзакция.")
+        return
 
-    if selected_id:
-        # Покажи потвърждение
-        bot.answer_callback_query(call.id)
-        bot.edit_message_text(
-            chat_id=user_id,
-            message_id=user_pending_type[user_id]["msg_id"],
-            text=f"✅ Избра вид: {selected_type}"
-        )
+    selected_id = user_pending_type[user_id]["options"].get(selected_label)
 
-        # Запази избора като ID на Airtable записа
-        user_pending_type[user_id]["selected_id"] = selected_id
-        user_pending_type[user_id]["selected_label"] = selected_type
-    else:
-        bot.send_message(user_id, "❌ Нещо се обърка – не можем да намерим ID за избрания вид.")
+    if not selected_id:
+        bot.answer_callback_query(call.id, "❌ Невалиден избор.")
+        return
 
-    # ✅ Покажи избрания вид
+    # 💾 Запази избора
+    user_pending_type[user_id]["selected"] = selected_id
+    user_pending_type[user_id]["selected_label"] = selected_label
+
+    # ✅ Покажи избраното
     bot.edit_message_text(
         chat_id=user_id,
         message_id=user_pending_type[user_id]["msg_id"],
-        text=f"✅ Избра вид: {selected_name}"
+        text=f"✅ Избра вид: {selected_label}"
     )
 
+
+
     # 💾 Запази избраното ID
-    user_pending_type[user_id]["selected"] = selected_id
+    user_pending_type[user_id]["selected_label"] = selected_label
 
 # Обработчик за командата "/edit"
 @bot.message_handler(commands=['edit'])
@@ -599,24 +616,34 @@ def process_new_account(message):
             bot.reply_to(message, "❌ Грешка при търсенето на акаунт.")
     else:
         bot.reply_to(message, "❌ Не намерихме избрания запис за редактиране.")
-
+        
+def get_transaction_types_from_airtable():
+            return list(get_transaction_type_options().keys())
+    
 # Обработчик за съобщения с финансови отчети
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
-    text = message.text  # Получаваме текста от съобщението
-    user_name = message.from_user.first_name  # Извличаме името на потребителя
-    user_id = message.chat.id  # ID на потребителя в чата
-    """Обработва всяко получено текстово съобщение като финансов отчет."""
+    text = message.text
+    user_id = message.chat.id
+    user_name = message.from_user.first_name
+    current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # ⬅️ добави това тук
 
-    # Вземаме текущата дата и час в желания формат
-    current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # Вземаме дата и час
-    
-    if re.search(r'\bот\b', text, re.IGNORECASE):  # Търсим "от"
-        account_part = re.split(r'\bот\b', text, flags=re.IGNORECASE)[-1].strip()
-    elif re.search(r'\bot\b', text, re.IGNORECASE):  # Търсим "ot"
-        account_part = re.split(r'\bot\b', text, flags=re.IGNORECASE)[-1].strip()
-    else:
-        account_part = ""
+    # 📌 1. Проверката за избран ВИД
+    types_list = get_transaction_types_from_airtable()
+    if user_id not in user_pending_type or not user_pending_type[user_id].get("selected"):
+        if types_list:
+            markup = types.InlineKeyboardMarkup(row_width=2)
+            buttons = [types.InlineKeyboardButton(text=typ, callback_data=typ) for typ in types_list]
+            markup.add(*buttons)
+
+            msg = bot.send_message(user_id, "📌 Моля, изберете ВИД на транзакцията:", reply_markup=markup)
+            user_pending_type[user_id] = {
+                "msg_id": msg.message_id,
+                "options": get_transaction_type_options()
+            }
+            return  # ⛔ Спираме тук, ще продължи след избора на потребителя
+
+    # 📌 2. Парсване на транзакцията
     amount, currency_code, description, account_name, is_expense = parse_transaction(text)
 
     if amount is None or currency_code is None or description == "":
@@ -625,19 +652,7 @@ def handle_message(message):
         bot.reply_to(message, reply_text, parse_mode="Markdown")
         return
 
-    # Ако потребителят все още не е избрал ВИД, предложи избор с бутони
-    if user_id not in user_pending_type or not user_pending_type[user_id].get("selected"):
-        types_list = get_transaction_types_from_airtable()
-        if types_list:
-            markup = types.InlineKeyboardMarkup(row_width=2)
-            buttons = [types.InlineKeyboardButton(text=typ, callback_data=typ) for typ in types_list]
-            markup.add(*buttons)
-
-            msg = bot.send_message(message.chat.id, "📌 Моля, изберете ВИД на транзакцията:", reply_markup=markup)
-            user_pending_type[message.chat.id] = {"msg_id": msg.message_id}
-            return  # изчакваме потребителя да избере тип, и после ще повтори съобщението
-
-    # Извличаме само частта след "от" или "ot"
+    # 📌 3. Извличане на акаунта
     account_part = ""
     if re.search(r'\bот\b', text, re.IGNORECASE):
         account_part = re.split(r'\bот\b', text, flags=re.IGNORECASE)[-1].strip()
@@ -690,8 +705,9 @@ def handle_message(message):
     if user_id in user_pending_type:
         selected_type = user_pending_type[user_id].get("selected")
         if selected_type:
-            fields["ВИД"] = selected_type
+            fields["ВИД"] = [selected_type]  # ✅ не забравяй скобите []
             del user_pending_type[user_id]
+
 
     if currency_code == "BGN":
         fields["Сума (лв.)"] = amount
