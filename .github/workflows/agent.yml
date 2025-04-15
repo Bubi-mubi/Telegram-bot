@@ -24,3 +24,5 @@ jobs:
 
       - name: Run agent
         run: python github_agent.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
