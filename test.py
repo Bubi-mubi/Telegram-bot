@@ -238,32 +238,56 @@ def show_filtered_transaction_types(message):
         "options": filtered
     }
 
+def handle_filter_input(message):
+    keyword = message.text.strip().lower()
+    user_id = message.chat.id
 
+    all_types = get_transaction_types()
+    filtered = {k: v for k, v in all_types.items() if keyword in k.lower()}
+
+    if not filtered:
+        bot.send_message(user_id, "❌ Няма резултати за тази дума.")
+        return
+
+    send_transaction_type_page(chat_id=user_id, page=0, filtered_types=filtered)
+
+def send_transaction_type_page(chat_id, page=0, filtered_types=None):
+    PAGE_SIZE = 20
+    all_types = filtered_types if filtered_types is not None else get_transaction_types()
+    sorted_keys = sorted(all_types.keys())
+    total_pages = (len(sorted_keys) - 1) // PAGE_SIZE + 1
+    start = page * PAGE_SIZE
+    end = start + PAGE_SIZE
+    current_page_keys = sorted_keys[start:end]
+
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    for name in current_page_keys:
+        markup.add(types.InlineKeyboardButton(text=name, callback_data=name))
+
+    # 🔽 Контролни бутони
+    controls = []
+    if page > 0:
+        controls.append(types.InlineKeyboardButton("◀️ Назад", callback_data="__prev"))
+    if end < len(sorted_keys):
+        controls.append(types.InlineKeyboardButton("▶️ Напред", callback_data="__next"))
+    markup.add(*controls)
+
+    # 🔍 Бутон за търсене
+    markup.add(types.InlineKeyboardButton("🔍 Въведи ключова дума", callback_data="__filter"))
+
+    # Изпращане на съобщението
+    msg = bot.send_message(chat_id, "📌 Избери ВИД на транзакцията:", reply_markup=markup)
+
+    user_pending_type[chat_id] = {
+        "msg_id": msg.message_id,
+        "options": all_types,
+        "page": page,
+        "filtered": filtered_types,
+        "selected": None
+    }
 @bot.message_handler(commands=['settype'])
 def ask_transaction_type(message):
-    transaction_types = get_transaction_types()
-    markup = types.InlineKeyboardMarkup(row_width=2)
-
-    buttons = [
-        types.InlineKeyboardButton(text=name, callback_data=name)
-        for name in transaction_types.keys()
-    ]
-    markup.add(*buttons)
-
-    # ➕ Добавяме бутон за филтриране
-    markup.add(types.InlineKeyboardButton(text="🔍 Филтрирай по дума", callback_data="FILTER_BY_KEYWORD"))
-
-    msg = bot.send_message(
-        message.chat.id,
-        "📌 Избери ВИД на транзакцията или 🔍 филтрирай по дума:",
-        reply_markup=markup
-    )
-
-    user_pending_type[message.chat.id] = {
-        "msg_id": msg.message_id,
-        "options": transaction_types
-    }
-
+    send_transaction_type_page(chat_id=message.chat.id, page=0)
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_transaction_type_selection(call):
@@ -292,6 +316,25 @@ def handle_transaction_type_selection(call):
         print("❌ Selected label not found in options.")
         return
 
+    if selected_label == "__prev":
+        current_page = user_pending_type[user_id].get("page", 0)
+        new_page = max(current_page - 1, 0)
+        bot.delete_message(user_id, user_pending_type[user_id]["msg_id"])
+        send_transaction_type_page(chat_id=user_id, page=new_page, filtered_types=user_pending_type[user_id].get("filtered"))
+        return
+
+    elif selected_label == "__next":
+        current_page = user_pending_type[user_id].get("page", 0)
+        new_page = current_page + 1
+        bot.delete_message(user_id, user_pending_type[user_id]["msg_id"])
+        send_transaction_type_page(chat_id=user_id, page=new_page, filtered_types=user_pending_type[user_id].get("filtered"))
+        return
+
+    elif selected_label == "__filter":
+        bot.answer_callback_query(call.id)
+        msg = bot.send_message(user_id, "🔍 Въведи дума за търсене:")
+        bot.register_next_step_handler(msg, handle_filter_input)
+        return
 
     # 💾 Запази избора
     user_pending_type[user_id]["selected"] = selected_id
