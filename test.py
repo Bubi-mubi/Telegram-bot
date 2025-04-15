@@ -876,7 +876,12 @@ def handle_message(message):
 
     # Добавяме името на потребителя
     fields["Име на потребителя"] = user_name  # Добавяме името на потребителя в новото поле
-    
+
+@bot.message_handler(func=lambda message: True)
+def debug_chat_id(message):
+    print(f"💬 Chat ID: {message.chat.id}")
+    bot.reply_to(message, f"🆔 Chat ID: {message.chat.id}")
+
 
 WEBHOOK_URL = f"{os.getenv('WEBHOOK_BASE_URL')}/bot{TELEGRAM_BOT_TOKEN}"
 
