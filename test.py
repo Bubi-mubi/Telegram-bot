@@ -147,10 +147,7 @@ import re
 import requests
 
 def get_transaction_types():
-    # Можеш да замениш със стойности от Airtable в бъдеще
-    return [
-        "Proxy", "New SIM card UK", "Office supplies",
-        "Ivelin money", "GSM", "Такси", "Пътуване", "Други"
+    return get_transaction_types_from_airtable()
     ]
 
 from telebot import types  # Увери се, че този импорт е наличен!
@@ -162,35 +159,47 @@ def get_transaction_types_from_airtable():
 
     if res.status_code == 200:
         data = res.json()
-        options = [record["fields"]["ТРАНЗАКЦИЯ"] for record in data["records"] if "ТРАНЗАКЦИЯ" in record["fields"]]
+        options = {}
+        for record in data.get("records", []):
+            name = record.get("fields", {}).get("ТРАНЗАКЦИЯ")
+            if name:
+                options[name] = record["id"]  # Връщаме име -> ID
         return options
     else:
-        print(f"⚠️ Error loading types: {res.status_code} - {res.text}")
-        return []
+        print(f"❌ Грешка при зареждане на типове транзакции: {res.status_code}")
+        return {}
 
 @bot.message_handler(commands=['settype'])
 def ask_transaction_type(message):
+    transaction_types = get_transaction_types()
     markup = types.InlineKeyboardMarkup(row_width=2)
-    types_list = get_transaction_types()
-    buttons = [types.InlineKeyboardButton(text=typ, callback_data=typ) for typ in types_list]
+    buttons = [types.InlineKeyboardButton(text=name, callback_data=name) for name in transaction_types.keys()]
     markup.add(*buttons)
 
     msg = bot.send_message(message.chat.id, "📌 Избери вид на транзакцията:", reply_markup=markup)
-    user_pending_type[message.chat.id] = {"msg_id": msg.message_id}
+    user_pending_type[message.chat.id] = {
+        "msg_id": msg.message_id,
+        "options": transaction_types  # Записваме всички типове + ID
+    }
 
-@bot.callback_query_handler(func=lambda call: call.data in get_transaction_types_from_airtable())
+@bot.callback_query_handler(func=lambda call: True)
 def handle_transaction_type_selection(call):
     user_id = call.message.chat.id
     selected_type = call.data
-
     bot.answer_callback_query(call.id)
-    bot.edit_message_text(
-        chat_id=user_id,
-        message_id=user_pending_type[user_id]["msg_id"],
-        text=f"✅ Избра вид: {selected_type}"
-    )
 
-    user_pending_type[user_id]["selected"] = selected_type
+    options = user_pending_type[user_id].get("options", {})
+    selected_id = options.get(selected_type)
+
+    if selected_id:
+        user_pending_type[user_id]["selected"] = selected_id  # Записваме ID
+        bot.edit_message_text(
+            chat_id=user_id,
+            message_id=user_pending_type[user_id]["msg_id"],
+            text=f"✅ Избра вид: {selected_type}"
+        )
+    else:
+        bot.send_message(user_id, "❌ Нещо се обърка – не можем да намерим ID за избрания вид.")
 
 # Обработчик за командата "/edit"
 @bot.message_handler(commands=['edit'])
@@ -198,11 +207,13 @@ def handle_edit(message):
     """Редактиране на съществуващ запис."""
     user_id = message.chat.id
     # ✅ Добавяме "ВИД", ако е избран
+    # Преди изпращане към Airtable
     if user_id in user_pending_type:
-        selected_type = user_pending_type[user_id].get("selected")
-        if selected_type:
-            fields["ВИД"] = selected_type
+        selected_id = user_pending_type[user_id].get("selected")
+        if selected_id:
+            fields["ВИД"] = [selected_id]
             del user_pending_type[user_id]
+
     if user_id in user_records and user_records[user_id]:
         # Покажете на потребителя списък с неговите записи
         records = user_records[user_id]
