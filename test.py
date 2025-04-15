@@ -147,36 +147,34 @@ import re
 import requests
 
 def get_transaction_types():
-    return get_transaction_types_from_airtable()
+    url_types = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/ВИД%20ТРАНЗАКЦИЯ"
+    headers = {
+        "Authorization": f"Bearer {AIRTABLE_PERSONAL_ACCESS_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    res = requests.get(url_types, headers=headers)
 
-from telebot import types  # Увери се, че този импорт е наличен!
-
-def get_transaction_types_from_airtable():
-    url_types = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{TABLE_TRANSACTION_TYPES}"
-    params = {"fields[]": ["ТРАНЗАКЦИЯ"]}
-    res = requests.get(url_types, headers=headers, params=params)
+    types_dict = {}
 
     if res.status_code == 200:
         data = res.json()
-        options = {}
         for record in data.get("records", []):
-            name = record.get("fields", {}).get("ТРАНЗАКЦИЯ")
+            name = record["fields"].get("ТРАНЗАКЦИЯ")
             if name:
-                options[name] = record["id"]  # Връщаме име -> ID
-        return options
+                types_dict[name] = record["id"]
     else:
-        print(f"❌ Грешка при зареждане на типове транзакции: {res.status_code}")
-        return {}
+        print("⚠️ Неуспешна заявка към Airtable:", res.status_code, res.text)
+
+    return types_dict
 
 @bot.message_handler(commands=['settype'])
 def ask_transaction_type(message):
-    transaction_types = get_transaction_types()  # {'GSM': 'recXYZ', ...}
-    markup = types.InlineKeyboardMarkup(row_width=2)
-
+    transaction_types = get_transaction_types()
     buttons = [
         types.InlineKeyboardButton(text=name, callback_data=name)
         for name in transaction_types.keys()
     ]
+
     markup.add(*buttons)
 
     msg = bot.send_message(
@@ -193,6 +191,7 @@ def ask_transaction_type(message):
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_transaction_type_selection(call):
+    selected_id = user_pending_type[user_id]["options"].get(call.data)
     user_id = call.message.chat.id
     selected_name = call.data
 
@@ -228,7 +227,7 @@ def handle_edit(message):
     if user_id in user_pending_type:
         selected_type_id = user_pending_type[user_id].get("selected")
         if selected_type_id:
-            fields["ВИД"] = [selected_type_id]  # 🔁 ВАЖНО: връзка към record ID
+            fields["ВИД"] = [selected_type_id]  # ⚠️ Важно: списък с ID-то
             del user_pending_type[user_id]
 
 
