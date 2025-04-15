@@ -227,17 +227,23 @@ def ask_transaction_type(message):
 @bot.callback_query_handler(func=lambda call: True)
 def handle_transaction_type_selection(call):
     user_id = call.message.chat.id
+    print(f"⚙️ Callback received: {call}")
     selected_label = call.data
 
     if user_id not in user_pending_type:
         bot.answer_callback_query(call.id, "❌ Няма очаквана транзакция.")
         return
-
+        
+    print(f"📌 user_id: {user_id}")
+    print(f"📌 selected_label: {selected_label}")
+    print(f"📌 user_pending_type: {user_pending_type.get(user_id)}")
+    
     selected_id = user_pending_type[user_id]["options"].get(selected_label)
-
     if not selected_id:
         bot.answer_callback_query(call.id, "❌ Невалиден избор.")
+        print("❌ Selected label not found in options.")
         return
+
 
     # 💾 Запази избора
     user_pending_type[user_id]["selected"] = selected_id
