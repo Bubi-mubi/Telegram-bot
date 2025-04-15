@@ -881,12 +881,24 @@ def handle_message(message):
         bot.reply_to(message, reply_text)
         print(f"Failed to create record: HTTP {res_post.status_code} - {error_msg}")
 
-import time
-time.sleep(3)
+WEBHOOK_URL = f"{os.getenv('WEBHOOK_BASE_URL')}/bot{TELEGRAM_BOT_TOKEN}"
+
+# Настройваме webhook-а
 bot.remove_webhook()
-info = bot.get_webhook_info()
-print("🔍 Webhook info:", info.url)  # Това трябва да е празно
-# Стартиране на бота
-print("🤖 Bot is polling...")
-# Завършваме първоначалното пускане на бота
-bot.polling(none_stop=True)
+time.sleep(1)
+bot.set_webhook(url=WEBHOOK_URL)
+
+from flask import Flask, request
+
+app = Flask(__name__)
+
+@app.route(f"/bot{TELEGRAM_BOT_TOKEN}", methods=['POST'])
+def receive_update():
+    json_str = request.get_data().decode('utf-8')
+    update = telebot.types.Update.de_json(json_str)
+    bot.process_new_updates([update])
+    return "OK", 200
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
