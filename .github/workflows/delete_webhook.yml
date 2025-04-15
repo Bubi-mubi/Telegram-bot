@@ -1,0 +1,24 @@
+name: Delete Telegram Webhook
+
+on:
+  workflow_dispatch:  # Това ще ти позволи ръчно да го пуснеш
+
+jobs:
+  delete_webhook:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install requests
+        run: pip install requests
+
+      - name: Run clear_webhook script
+        run: python clear_webhook.py
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
