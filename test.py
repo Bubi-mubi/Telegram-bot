@@ -347,10 +347,10 @@ def handle_transaction_type_selection(call):
         return
 
     elif selected_label == "__reset":
-    bot.answer_callback_query(call.id)
-    bot.delete_message(user_id, user_pending_type[user_id]["msg_id"])
-    send_transaction_type_page(chat_id=user_id, page=0)  # 🧼 Показваме всички
-    return
+        bot.answer_callback_query(call.id)
+        bot.delete_message(user_id, user_pending_type[user_id]["msg_id"])
+        send_transaction_type_page(chat_id=user_id, page=0)  # 🧼 Показваме всички
+        return
 
 
     # 💾 Запази избора
