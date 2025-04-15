@@ -878,10 +878,18 @@ def handle_message(message):
     fields["Име на потребителя"] = user_name  # Добавяме името на потребителя в новото поле
 
 @bot.message_handler(func=lambda message: True)
-def debug_topic_ids(message):
-    print(f"🆔 Chat ID: {message.chat.id}")
-    print(f"🧵 Thread ID: {message.message_thread_id}")
-    bot.reply_to(message, "✅ ID-тата са логнати. Продължаваме!")
+def debug_topic_info(message):
+    print(f"📥 Получено съобщение:")
+    print(f"🔸 Chat title: {message.chat.title}")
+    print(f"🔸 Chat ID: {message.chat.id}")
+    print(f"🔸 From user: {message.from_user.first_name}")
+    print(f"🔸 Thread ID (message_thread_id): {getattr(message, 'message_thread_id', None)}")
+
+    bot.reply_to(
+        message,
+        f"📌 Chat ID: `{message.chat.id}`\n🧵 Topic ID: `{getattr(message, 'message_thread_id', 'None')}`",
+        parse_mode="Markdown"
+    )
 
 WEBHOOK_URL = f"{os.getenv('WEBHOOK_BASE_URL')}/bot{TELEGRAM_BOT_TOKEN}"
 
