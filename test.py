@@ -321,11 +321,12 @@ def handle_transaction_type_selection(call):
     print(f"📌 selected_label: {selected_label}")
     print(f"📌 user_pending_type: {user_pending_type.get(user_id)}")
     
-    selected_id = user_pending_type[user_id]["options"].get(selected_label)
-    if not selected_id:
+    if selected_label in ["__next", "__prev", "__filter"]:
+        pass  # Ще обработим по-надолу
+    elif selected_label not in user_pending_type[user_id]["options"]:
         bot.answer_callback_query(call.id, "❌ Невалиден избор.")
-        print("❌ Selected label not found in options.")
         return
+
 
     if selected_label == "__prev":
         current_page = user_pending_type[user_id].get("page", 0)
