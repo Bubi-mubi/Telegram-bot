@@ -327,6 +327,8 @@ def handle_transaction_type_selection(call):
         bot.answer_callback_query(call.id, "❌ Невалиден избор.")
         return
 
+    selected_id = user_pending_type[user_id]["options"].get(selected_label)
+
 
     if selected_label == "__prev":
         current_page = user_pending_type[user_id].get("page", 0)
@@ -389,9 +391,6 @@ def handle_transaction_type_selection(call):
             fields["Акаунт"] = [account_id]
         else:
             fields["Описание"] = f"{tx['description']} (Акаунт: {tx['account_name']})"
-
-        data = {"fields": fields}
-        res_post = requests.post(url_reports, headers=headers, json=data)
 
         if res_post.status_code in (200, 201):
             record_id = res_post.json().get("id")
