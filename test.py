@@ -262,31 +262,32 @@ def send_transaction_type_page(chat_id, page=0, filtered_types=None):
     current_page_keys = sorted_keys[start:end]
 
     markup = types.InlineKeyboardMarkup(row_width=2)
-        # Създаваме бутони за текущите ВИД-ове
-    for name in current_page_keys:
-        markup.add(types.InlineKeyboardButton(text=name, callback_data=name))
 
-    # 🔽 Контролни бутони
+    # 🔲 Добавяме бутоните по двойки
+    for i in range(0, len(current_page_keys), 2):
+        row_buttons = []
+        for j in range(2):
+            if i + j < len(current_page_keys):
+                key = current_page_keys[i + j]
+                row_buttons.append(types.InlineKeyboardButton(text=key, callback_data=key))
+        markup.add(*row_buttons)
+
+    # 🔄 Навигация (различен стил с емоджи)
     nav_buttons = []
     if page > 0:
-        nav_buttons.append(types.InlineKeyboardButton("◀️ Назад", callback_data="__prev"))
+        nav_buttons.append(types.InlineKeyboardButton("⬅️ Назад", callback_data="__prev"))
     if end < len(sorted_keys):
-        nav_buttons.append(types.InlineKeyboardButton("▶️ Напред", callback_data="__next"))
+        nav_buttons.append(types.InlineKeyboardButton("➡️ Напред", callback_data="__next"))
     if nav_buttons:
         markup.add(*nav_buttons)
 
-    # 🔍 Бутон за търсене по ключова дума
-    markup.add(types.InlineKeyboardButton("🔍 Въведи ключова дума", callback_data="__filter"))
+    # 🔍 Филтър бутон със стил
+    markup.add(types.InlineKeyboardButton("🔍 Въведи ключова дума 🔍", callback_data="__filter"))
 
-    # 🔁 Назад към всички видове (показва се само ако сме във филтриран режим)
-    if filtered_types is not None:
-        markup.add(types.InlineKeyboardButton("🔁 Назад към всички видове", callback_data="__reset"))
+    # 📬 Изпращане на съобщението
+    msg = bot.send_message(chat_id, "📌 Моля, изберете ВИД на транзакцията:", reply_markup=markup)
 
-
-    # Изпращаме съобщението с клавиатурата
-    msg = bot.send_message(chat_id, "📌 Избери ВИД на транзакцията:", reply_markup=markup)
-
-    # Запазваме състоянието на потребителя
+    # 💾 Запазваме състоянието
     user_pending_type[chat_id] = {
         "msg_id": msg.message_id,
         "options": all_types,
