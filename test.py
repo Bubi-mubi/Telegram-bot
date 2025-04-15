@@ -170,35 +170,52 @@ def get_transaction_types_from_airtable():
 
 @bot.message_handler(commands=['settype'])
 def ask_transaction_type(message):
-    transaction_types = get_transaction_types()
+    transaction_types = get_transaction_types()  # {'GSM': 'recXYZ', ...}
     markup = types.InlineKeyboardMarkup(row_width=2)
-    buttons = [types.InlineKeyboardButton(text=name, callback_data=name) for name in transaction_types.keys()]
+
+    buttons = [
+        types.InlineKeyboardButton(text=name, callback_data=name)
+        for name in transaction_types.keys()
+    ]
     markup.add(*buttons)
 
-    msg = bot.send_message(message.chat.id, "📌 Избери вид на транзакцията:", reply_markup=markup)
+    msg = bot.send_message(
+        message.chat.id,
+        "📌 Избери вид на транзакцията:",
+        reply_markup=markup
+    )
+
+    # 👇 Записваме и ID-тата на транзакциите
     user_pending_type[message.chat.id] = {
         "msg_id": msg.message_id,
-        "options": transaction_types  # Записваме всички типове + ID
+        "options": transaction_types
     }
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_transaction_type_selection(call):
     user_id = call.message.chat.id
-    selected_type = call.data
-    bot.answer_callback_query(call.id)
+    selected_name = call.data
 
-    options = user_pending_type[user_id].get("options", {})
-    selected_id = options.get(selected_type)
+    if user_id not in user_pending_type:
+        bot.answer_callback_query(call.id, text="Нещо се обърка – няма избрани опции.")
+        return
 
-    if selected_id:
-        user_pending_type[user_id]["selected"] = selected_id  # Записваме ID
-        bot.edit_message_text(
-            chat_id=user_id,
-            message_id=user_pending_type[user_id]["msg_id"],
-            text=f"✅ Избра вид: {selected_type}"
-        )
-    else:
-        bot.send_message(user_id, "❌ Нещо се обърка – не можем да намерим ID за избрания вид.")
+    selected_options = user_pending_type[user_id].get("options", {})
+    selected_id = selected_options.get(selected_name)
+
+    if not selected_id:
+        bot.answer_callback_query(call.id, text="Нещо се обърка – не можем да намерим ID за избрания вид.")
+        return
+
+    # ✅ Покажи избрания вид
+    bot.edit_message_text(
+        chat_id=user_id,
+        message_id=user_pending_type[user_id]["msg_id"],
+        text=f"✅ Избра вид: {selected_name}"
+    )
+
+    # 💾 Запази избраното ID
+    user_pending_type[user_id]["selected"] = selected_id
 
 # Обработчик за командата "/edit"
 @bot.message_handler(commands=['edit'])
@@ -207,11 +224,13 @@ def handle_edit(message):
     user_id = message.chat.id
     # ✅ Добавяме "ВИД", ако е избран
     # Преди изпращане към Airtable
+    
     if user_id in user_pending_type:
-        selected_id = user_pending_type[user_id].get("selected")
-        if selected_id:
-            fields["ВИД"] = [selected_id]
+        selected_type_id = user_pending_type[user_id].get("selected")
+        if selected_type_id:
+            fields["ВИД"] = [selected_type_id]  # 🔁 ВАЖНО: връзка към record ID
             del user_pending_type[user_id]
+
 
     if user_id in user_records and user_records[user_id]:
         # Покажете на потребителя списък с неговите записи
