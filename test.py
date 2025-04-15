@@ -262,23 +262,31 @@ def send_transaction_type_page(chat_id, page=0, filtered_types=None):
     current_page_keys = sorted_keys[start:end]
 
     markup = types.InlineKeyboardMarkup(row_width=2)
+        # Създаваме бутони за текущите ВИД-ове
     for name in current_page_keys:
         markup.add(types.InlineKeyboardButton(text=name, callback_data=name))
 
     # 🔽 Контролни бутони
-    controls = []
+    nav_buttons = []
     if page > 0:
-        controls.append(types.InlineKeyboardButton("◀️ Назад", callback_data="__prev"))
+        nav_buttons.append(types.InlineKeyboardButton("◀️ Назад", callback_data="__prev"))
     if end < len(sorted_keys):
-        controls.append(types.InlineKeyboardButton("▶️ Напред", callback_data="__next"))
-    markup.add(*controls)
+        nav_buttons.append(types.InlineKeyboardButton("▶️ Напред", callback_data="__next"))
+    if nav_buttons:
+        markup.add(*nav_buttons)
 
-    # 🔍 Бутон за търсене
+    # 🔍 Бутон за търсене по ключова дума
     markup.add(types.InlineKeyboardButton("🔍 Въведи ключова дума", callback_data="__filter"))
 
-    # Изпращане на съобщението
+    # 🔁 Назад към всички видове (показва се само ако сме във филтриран режим)
+    if filtered_types is not None:
+        markup.add(types.InlineKeyboardButton("🔁 Назад към всички видове", callback_data="__reset"))
+
+
+    # Изпращаме съобщението с клавиатурата
     msg = bot.send_message(chat_id, "📌 Избери ВИД на транзакцията:", reply_markup=markup)
 
+    # Запазваме състоянието на потребителя
     user_pending_type[chat_id] = {
         "msg_id": msg.message_id,
         "options": all_types,
@@ -286,6 +294,7 @@ def send_transaction_type_page(chat_id, page=0, filtered_types=None):
         "filtered": filtered_types,
         "selected": None
     }
+
 @bot.message_handler(commands=['settype'])
 def ask_transaction_type(message):
     send_transaction_type_page(chat_id=message.chat.id, page=0)
@@ -336,6 +345,13 @@ def handle_transaction_type_selection(call):
         msg = bot.send_message(user_id, "🔍 Въведи дума за търсене:")
         bot.register_next_step_handler(msg, handle_filter_input)
         return
+
+    elif selected_label == "__reset":
+    bot.answer_callback_query(call.id)
+    bot.delete_message(user_id, user_pending_type[user_id]["msg_id"])
+    send_transaction_type_page(chat_id=user_id, page=0)  # 🧼 Показваме всички
+    return
+
 
     # 💾 Запази избора
     user_pending_type[user_id]["selected"] = selected_id
