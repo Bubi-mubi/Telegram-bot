@@ -214,31 +214,6 @@ def get_transaction_type_options():
         print("❌ Грешка при зареждане на видовете транзакции:", res.text)
         return {}
 
-def show_filtered_transaction_types(message):
-    keyword = message.text.strip().lower()
-    user_id = message.chat.id
-
-    all_types = get_transaction_types()
-    filtered = {
-        name: id_ for name, id_ in all_types.items()
-        if keyword in name.lower()
-    }
-
-    if not filtered:
-        bot.send_message(user_id, "❌ Няма съвпадения. Опитай с друга дума.")
-        return
-
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    buttons = [types.InlineKeyboardButton(text=key, callback_data=key) for key in filtered]
-    markup.add(*buttons)
-
-    msg = bot.send_message(user_id, f"📌 Резултати за „{keyword}“:", reply_markup=markup)
-
-    user_pending_type[user_id] = {
-        "msg_id": msg.message_id,
-        "options": filtered
-    }
-
 def handle_filter_input(message):
     keyword = message.text.strip().lower()
     user_id = message.chat.id
@@ -247,10 +222,20 @@ def handle_filter_input(message):
     filtered = {k: v for k, v in all_types.items() if keyword in k.lower()}
 
     if not filtered:
-        bot.send_message(user_id, "❌ Няма резултати за тази дума.")
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("🔍 Опитай нова дума", callback_data="__filter"))
+        markup.add(types.InlineKeyboardButton("📜 Покажи всички", callback_data="__reset"))
+
+        bot.send_message(user_id, "❌ Няма резултати за тази дума. Опитай отново:", reply_markup=markup)
         return
 
     send_transaction_type_page(chat_id=user_id, page=0, filtered_types=filtered)
+
+
+    user_pending_type[user_id] = {
+        "msg_id": msg.message_id,
+        "options": filtered
+    }
 
 def send_transaction_type_page(chat_id, page=0, filtered_types=None):
     PAGE_SIZE = 20
@@ -351,9 +336,9 @@ def handle_transaction_type_selection(call):
 
     elif selected_label == "__reset":
         bot.answer_callback_query(call.id)
-        bot.delete_message(user_id, user_pending_type[user_id]["msg_id"])
-        send_transaction_type_page(chat_id=user_id, page=0)  # 🧼 Показваме всички
+        send_transaction_type_page(chat_id=user_id, page=0)
         return
+
 
 
     # 💾 Запази избора
