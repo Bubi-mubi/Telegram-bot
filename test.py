@@ -190,21 +190,27 @@ def ask_transaction_type(message):
     }
 
 @bot.callback_query_handler(func=lambda call: True)
+@bot.callback_query_handler(func=lambda call: call.data in user_pending_type.get(call.message.chat.id, {}).get("options", {}))
 def handle_transaction_type_selection(call):
-    selected_id = user_pending_type[user_id]["options"].get(call.data)
-    user_id = call.message.chat.id
-    selected_name = call.data
+    user_id = call.message.chat.id  # ✅ ТОВА ТРЯБВА ДА СТОИ НАЧАЛОТО
 
-    if user_id not in user_pending_type:
-        bot.answer_callback_query(call.id, text="Нещо се обърка – няма избрани опции.")
-        return
+    selected_type = call.data
+    selected_id = user_pending_type[user_id]["options"].get(selected_type)
 
-    selected_options = user_pending_type[user_id].get("options", {})
-    selected_id = selected_options.get(selected_name)
+    if selected_id:
+        # Покажи потвърждение
+        bot.answer_callback_query(call.id)
+        bot.edit_message_text(
+            chat_id=user_id,
+            message_id=user_pending_type[user_id]["msg_id"],
+            text=f"✅ Избра вид: {selected_type}"
+        )
 
-    if not selected_id:
-        bot.answer_callback_query(call.id, text="Нещо се обърка – не можем да намерим ID за избрания вид.")
-        return
+        # Запази избора като ID на Airtable записа
+        user_pending_type[user_id]["selected_id"] = selected_id
+        user_pending_type[user_id]["selected_label"] = selected_type
+    else:
+        bot.send_message(user_id, "❌ Нещо се обърка – не можем да намерим ID за избрания вид.")
 
     # ✅ Покажи избрания вид
     bot.edit_message_text(
