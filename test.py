@@ -667,9 +667,10 @@ def handle_message(message):
     user_name = message.from_user.first_name
     current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # ⬅️ добави това тук
     
-    # 📌 1. Парсване на транзакцията
+    # 📌 ПЪРВО парсваме съобщението
     amount, currency_code, description, account_name, is_expense = parse_transaction(text)
-        if amount is None or currency_code is None or description == "":
+
+    if amount is None or currency_code is None or description == "":
         reply_text = ("⚠️ Неразпознат формат. Моля, използвайте формат като:\n"
                       "`100 лв. за <описание> от <акаунт>`")
         bot.reply_to(message, reply_text, parse_mode="Markdown")
