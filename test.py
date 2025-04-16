@@ -841,7 +841,7 @@ def get_transaction_types_from_airtable():
             #"datetime": current_datetime,
         #} 
 
-        send_transaction_type_page(chat_id=user_id, page=0)
+        #send_transaction_type_page(chat_id=user_id, page=0)
 
     # 📌 3. Извличане на акаунта
     account_part = ""
