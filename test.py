@@ -823,7 +823,7 @@ def get_transaction_types_from_airtable():
 
     #if amount is None or currency_code is None or description == "":
         #reply_text = ("⚠️ Неразпознат формат. Моля, използвайте формат като:\n"
-                      "`100 лв. за <описание> от <акаунт>`")
+                      #"`100 лв. за <описание> от <акаунт>`")
         #bot.reply_to(message, reply_text, parse_mode="Markdown")
         #return
 
