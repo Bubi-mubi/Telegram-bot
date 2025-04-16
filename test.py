@@ -819,7 +819,7 @@ def handle_message(message):
     current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # ⬅️ добави това тук
     
     # 📌 ПЪРВО парсваме съобщението
-    #amount, currency_code, description, account_name, is_expense = parse_transaction(text)
+    amount, currency_code, description, account_name, is_expense = parse_transaction(text)
 
     if amount is None or currency_code is None or description == "":
         reply_text = ("⚠️ Неразпознат формат. Моля, използвайте формат като:\n"
