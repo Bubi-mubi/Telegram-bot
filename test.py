@@ -253,7 +253,10 @@ def handle_filter_input(message):
         "options": filtered
     }
 
-def send_transaction_type_page(chat_id, page=0, filtered_types=None):
+def send_transaction_type_page(chat_id, page=0, filtered_types=None, message=None):
+    if message is None:
+        print("⚠️ Липсва 'message' в send_transaction_type_page().")
+        return
     PAGE_SIZE = 20
     all_types = filtered_types if filtered_types is not None else get_transaction_types()
     sorted_keys = sorted(all_types.keys())
@@ -298,7 +301,7 @@ def send_transaction_type_page(chat_id, page=0, filtered_types=None):
 
 @bot.message_handler(commands=['settype'])
 def ask_transaction_type(message):
-    send_transaction_type_page(chat_id=message.chat.id, page=0)
+    send_transaction_type_page(chat_id=message.chat.id, page=0, message=message)
 
 @bot.message_handler(func=lambda message: True)
 def debug_handler(message):
@@ -354,7 +357,7 @@ def debug_handler(message):
 
     elif selected_label == "__reset":
         bot.answer_callback_query(call.id)
-        send_transaction_type_page(chat_id=user_id, page=0)
+        send_transaction_type_page(chat_id=user_id, page=0, message=message)
         return
 
     # ✅ Проверка дали е валиден тип
@@ -863,7 +866,7 @@ def handle_message(message):  # 🟢 ЕТО ТОВА ЛИПСВАШЕ!
             "datetime": current_datetime,
         } 
 
-        send_transaction_type_page(chat_id=user_id, page=0)
+        send_transaction_type_page(chat_id=user_id, page=0, message=message)
 
     # 📌 3. Извличане на акаунта
     account_part = ""
