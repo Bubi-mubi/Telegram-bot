@@ -816,8 +816,8 @@ def get_transaction_types_from_airtable():
     
 # Обработчик за съобщения с финансови отчети
 @bot.message_handler(func=lambda message: (
-    (message.chat.type == "private") or
-    (message.chat.id == FIXED_CHAT_ID and message.message_thread_id == FIXED_THREAD_ID)
+    message.chat.type == "private" or
+    (message.chat.id == FIXED_CHAT_ID and getattr(message, "message_thread_id", None) == FIXED_THREAD_ID)
 ))
 def handle_message(message):  # 🟢 ЕТО ТОВА ЛИПСВАШЕ!
     text = message.text
