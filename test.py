@@ -300,11 +300,14 @@ def send_transaction_type_page(chat_id, page=0, filtered_types=None):
 def ask_transaction_type(message):
     send_transaction_type_page(chat_id=message.chat.id, page=0)
 
-@bot.callback_query_handler(func=lambda call: True)
-def handle_transaction_type_selection(call):
-    user_id = call.message.chat.id
-    print(f"⚙️ Callback received: {call}")
-    selected_label = call.data
+@bot.message_handler(func=lambda message: True)
+def debug_handler(message):
+    print("🟢 Message received!")
+    print("👤 User:", message.from_user.username)
+    print("📨 Text:", message.text)
+    print("📍 Chat ID:", message.chat.id)
+    print("📌 Thread ID:", getattr(message, "message_thread_id", None))
+    smart_reply_to(message, "✅ Получих съобщението!")
 
     if user_id not in user_pending_type:
         bot.answer_callback_query(call.id, "❌ Няма очаквана транзакция.")
