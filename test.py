@@ -854,6 +854,8 @@ def handle_message(message):
         } 
 
         send_transaction_type_page(chat_id=user_id, page=0)
+        return 
+
 
      #📌 3. Извличане на акаунта
     account_part = ""
