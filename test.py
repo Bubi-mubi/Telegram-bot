@@ -13,10 +13,6 @@ AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")  # ID на Airtable базат�
 TABLE_ACCOUNTS = "ВСИЧКИ АКАУНТИ"
 TABLE_REPORTS = "Отчет Телеграм"
 TABLE_TRANSACTION_TYPES = "ВИД ТРАНЗАКЦИЯ"
-# 👉 Конкретният форум в групата, където искаш ботът да отговаря
-FIXED_CHAT_ID = -1002353499188     # <--- това е от /id
-FIXED_THREAD_ID = 2657             # <--- това също от /id
-
 
 # Подготовка на URL и headers за Airtable API
 url_accounts = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{TABLE_ACCOUNTS}"
@@ -28,18 +24,6 @@ headers = {
 
 # Инициализиране на Telegram бота
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
-
-# 🔧 Универсални функции за изпращане на съобщения с поддръжка на thread_id
-def smart_send_message(message, text, **kwargs):
-    """Изпраща съобщение, като добавя thread_id ако е нужно (във форум)."""
-    if message.chat.type in ("group", "supergroup") and getattr(message, "message_thread_id", None):
-        kwargs["message_thread_id"] = message.message_thread_id
-    return bot.send_message(chat_id=message.chat.id, text=text, **kwargs)
-
-def smart_reply_to(message, text, **kwargs):
-    if message.chat.type in ("group", "supergroup") and getattr(message, "message_thread_id", None):
-        kwargs["message_thread_id"] = message.message_thread_id
-    return bot.reply_to(message, text, **kwargs)  # <-- Тук трябва да е `bot.reply_to`
 
 # Словар за запазване на всички записи на потребителя
 user_records = {}
@@ -242,7 +226,7 @@ def handle_filter_input(message):
         markup.add(types.InlineKeyboardButton("🔍 Опитай нова дума", callback_data="__filter"))
         markup.add(types.InlineKeyboardButton("📜 Покажи всички", callback_data="__reset"))
 
-        smart_send_message(message, "❌ Няма резултати за тази дума. Опитай отново:", reply_markup=markup)
+        bot.send_message(user_id, "❌ Няма резултати за тази дума. Опитай отново:", reply_markup=markup)
         return
 
     send_transaction_type_page(chat_id=user_id, page=0, filtered_types=filtered)
@@ -253,10 +237,7 @@ def handle_filter_input(message):
         "options": filtered
     }
 
-def send_transaction_type_page(chat_id, page=0, filtered_types=None, message=None):
-    if message is None:
-        print("⚠️ Липсва 'message' в send_transaction_type_page().")
-        return
+def send_transaction_type_page(chat_id, page=0, filtered_types=None):
     PAGE_SIZE = 20
     all_types = filtered_types if filtered_types is not None else get_transaction_types()
     sorted_keys = sorted(all_types.keys())
@@ -288,7 +269,7 @@ def send_transaction_type_page(chat_id, page=0, filtered_types=None, message=Non
     markup.add(types.InlineKeyboardButton("🔍 Въведи ключова дума 🔍", callback_data="__filter"))
 
     # 📬 Изпращане на съобщението
-    msg = smart_send_message(message, "📌 Моля, изберете ВИД на транзакцията:", reply_markup=markup)
+    msg = bot.send_message(chat_id, "📌 Моля, изберете ВИД на транзакцията:", reply_markup=markup)
 
     # 💾 Запазваме състоянието
     user_pending_type[chat_id] = {
@@ -301,16 +282,13 @@ def send_transaction_type_page(chat_id, page=0, filtered_types=None, message=Non
 
 @bot.message_handler(commands=['settype'])
 def ask_transaction_type(message):
-    send_transaction_type_page(chat_id=message.chat.id, page=0, message=message)
+    send_transaction_type_page(chat_id=message.chat.id, page=0)
 
-@bot.message_handler(func=lambda message: True)
-def debug_handler(message):
-    print("🟢 Message received!")
-    print("👤 User:", message.from_user.username)
-    print("📨 Text:", message.text)
-    print("📍 Chat ID:", message.chat.id)
-    print("📌 Thread ID:", getattr(message, "message_thread_id", None))
-    smart_reply_to(message, "✅ Получих съобщението!")
+@bot.callback_query_handler(func=lambda call: True)
+def handle_transaction_type_selection(call):
+    user_id = call.message.chat.id
+    print(f"⚙️ Callback received: {call}")
+    selected_label = call.data
 
     if user_id not in user_pending_type:
         bot.answer_callback_query(call.id, "❌ Няма очаквана транзакция.")
@@ -318,7 +296,7 @@ def debug_handler(message):
 
     if call.data == "FILTER_BY_KEYWORD":
         bot.answer_callback_query(call.id)
-        smart_send_message(message, "🔍 Въведи дума за филтриране:")
+        bot.send_message(user_id, "🔍 Въведи дума за филтриране:")
         bot.register_next_step_handler(call.message, show_filtered_transaction_types)
         return
 
@@ -351,13 +329,13 @@ def debug_handler(message):
 
     elif selected_label == "__filter":
         bot.answer_callback_query(call.id)
-        msg = smart_send_message(message, "🔍 Въведи дума за търсене:")
+        msg = bot.send_message(user_id, "🔍 Въведи дума за търсене:")
         bot.register_next_step_handler(msg, handle_filter_input)
         return
 
     elif selected_label == "__reset":
         bot.answer_callback_query(call.id)
-        send_transaction_type_page(chat_id=user_id, page=0, message=message)
+        send_transaction_type_page(chat_id=user_id, page=0)
         return
 
     # ✅ Проверка дали е валиден тип
@@ -410,9 +388,9 @@ def debug_handler(message):
             if user_id not in user_records:
                 user_records[user_id] = []
             user_records[user_id].append(record_id)
-            smart_send_message(message, f"✅ Избра вид: {selected_label}\n📌 Отчетът е записан успешно.")
+            bot.send_message(user_id, f"✅ Избра вид: {selected_label}\n📌 Отчетът е записан успешно.")
         else:
-            smart_send_message(message, f"❌ Грешка при записването: {res_post.text}")
+            bot.send_message(user_id, f"❌ Грешка при записването: {res_post.text}")
 
         # 🧹 Изчистваме временното състояние
         del pending_transaction_data[user_id]
@@ -465,9 +443,9 @@ def debug_handler(message):
             if user_id not in user_records:
                 user_records[user_id] = []
             user_records[user_id].append(record_id)
-            smart_send_message(message, f"✅ Избра вид: {selected_label}\n📌 Отчетът е записан успешно.")
+            bot.send_message(user_id, f"✅ Избра вид: {selected_label}\n📌 Отчетът е записан успешно.")
         else:
-            smart_send_message(message, f"❌ Грешка при записването: {res_post.text}")
+            bot.send_message(user_id, f"❌ Грешка при записването: {res_post.text}")
 
         # 🧹 Изчистваме временното състояние
         del pending_transaction_data[user_id]
@@ -486,7 +464,7 @@ def handle_edit(message):
     records = get_user_records_from_airtable(user_name)
 
     if not records:
-        smart_reply_to(message, "❌ Няма записи за редактиране.")
+        bot.reply_to(message, "❌ Няма записи за редактиране.")
         return
 
     user_records[user_id] = [r["id"] for r in records]
@@ -510,7 +488,7 @@ def handle_edit(message):
         full_text = f"{amount} {description} от {account_name}"
         reply_text += f"{i}. Запис {record_id} - {full_text}\n"
 
-    sent_msg = smart_reply_to(message, reply_text + "Изберете номер на запис за редактиране (напр. /edit 1):")
+    sent_msg = bot.reply_to(message, reply_text + "Изберете номер на запис за редактиране (напр. /edit 1):")
     bot.register_next_step_handler(sent_msg, process_edit_choice)
 
 
@@ -543,7 +521,7 @@ def update_amount(message):
                 elif currency_str in ("gbp", "£", "паунд", "паунда", "paunda"):
                     new_currency_code = "GBP"
                 else:
-                    smart_reply_to(message, "❌ Моля, въведете валидна валута: лв., EUR, GBP.")
+                    bot.reply_to(message, "❌ Моля, въведете валидна валута: лв., EUR, GBP.")
                     return
 
                 # Печат на данни за актуализация
@@ -562,18 +540,18 @@ def update_amount(message):
                 print(f"Response from Airtable: {res_put.status_code} - {res_put.text}")  # Печатаме отговора от Airtable
 
                 if res_put.status_code == 200:
-                    smart_reply_to(message, "✅ Сумата и валутата са успешно актуализирани.")
+                    bot.reply_to(message, "✅ Сумата и валутата са успешно актуализирани.")
                     del user_editing[user_id]  # Изтриваме записа от избраните за редактиране
                 else:
-                    smart_reply_to(message, "❌ Грешка при актуализирането на сумата и валутата.")
+                    bot.reply_to(message, "❌ Грешка при актуализирането на сумата и валутата.")
                     del user_editing[user_id]
             else:
-                smart_reply_to(message, "❌ Моля, въведете валидна сума с валута. Пример: 100 лв., 250 EUR, 50 GBP.")
+                bot.reply_to(message, "❌ Моля, въведете валидна сума с валута. Пример: 100 лв., 250 EUR, 50 GBP.")
         except ValueError:
-            smart_reply_to(message, "❌ Моля, въведете валидна сума.")
+            bot.reply_to(message, "❌ Моля, въведете валидна сума.")
             return
     else:
-        smart_reply_to(message, "❌ Не намерихме избрания запис за редактиране.")
+        bot.reply_to(message, "❌ Не намерихме избрания запис за редактиране.")
         
 @bot.message_handler(commands=['delete'])
 def handle_delete(message):
@@ -583,7 +561,7 @@ def handle_delete(message):
     records = get_user_records_from_airtable(user_name)
 
     if not records:
-        smart_reply_to(message, "❌ Няма записи за изтриване.")
+        bot.reply_to(message, "❌ Няма записи за изтриване.")
         return
 
     user_records[user_id] = [r["id"] for r in records]
@@ -606,7 +584,7 @@ def handle_delete(message):
         full_text = f"{amount} {description} от {account_name}"
         reply_text += f"{i}. Запис {record_id} - {full_text}\n"
 
-    sent_msg = smart_reply_to(message, reply_text + "Изберете номер на запис за изтриване (напр. /delete 1):")
+    sent_msg = bot.reply_to(message, reply_text + "Изберете номер на запис за изтриване (напр. /delete 1):")
     bot.register_next_step_handler(sent_msg, process_delete_choice)
 
 
@@ -626,15 +604,15 @@ def process_delete_choice(message):
             res_delete = requests.delete(delete_url, headers=headers)
 
             if res_delete.status_code == 200:
-                smart_reply_to(message, f"✅ Съобщението {record_id} беше изтрито успешно.")
+                bot.reply_to(message, f"✅ Съобщението {record_id} беше изтрито успешно.")
                 # Премахваме записа от списъка на потребителя
                 user_records[user_id].remove(record_id)
             else:
-                smart_reply_to(message, f"❌ Грешка при изтриването на съобщението {record_id}.")
+                bot.reply_to(message, f"❌ Грешка при изтриването на съобщението {record_id}.")
         else:
-            smart_reply_to(message, "❌ Невалиден номер на запис.")
+            bot.reply_to(message, "❌ Невалиден номер на запис.")
     except (ValueError, IndexError):
-        smart_reply_to(message, "❌ Моля, въведете валиден номер на запис.")       
+        bot.reply_to(message, "❌ Моля, въведете валиден номер на запис.")       
 
 # Функция за обработка на полето за редактиране (описание, сума или акаунт)
 def process_edit_field(message):
@@ -643,18 +621,18 @@ def process_edit_field(message):
 
     if field_to_edit == "описание":
         user_editing[user_id]['field'] = 'описание'
-        smart_reply_to(message, "Моля, въведете новото описание за този запис:")
+        bot.reply_to(message, "Моля, въведете новото описание за този запис:")
         bot.register_next_step_handler(message, process_new_description)
     elif field_to_edit == "сума":
         user_editing[user_id]['field'] = 'сума'
-        smart_reply_to(message, "Моля, въведете новата стойност за сумата:")
+        bot.reply_to(message, "Моля, въведете новата стойност за сумата:")
         bot.register_next_step_handler(message, update_amount)  # Извикваме update_amount за сума
     elif field_to_edit == "акаунт":
         user_editing[user_id]['field'] = 'акаунт'
-        smart_reply_to(message, "Моля, въведете новия акаунт:")
+        bot.reply_to(message, "Моля, въведете новия акаунт:")
         bot.register_next_step_handler(message, process_new_account)  # Извикваме process_new_account за акаунт
     else:
-        smart_reply_to(message, "❌ Моля, въведете една от следните опции: описание, сума, акаунт.")
+        bot.reply_to(message, "❌ Моля, въведете една от следните опции: описание, сума, акаунт.")
         bot.register_next_step_handler(message, process_edit_field)
 
 # Обработчик за избор на запис
@@ -669,12 +647,12 @@ def process_edit_choice(message):
             # Записваме кой запис ще редактираме и кой поле се редактира
             user_editing[user_id] = {'record_id': record_id, 'field': None}
             # Изпращаме заявка за редактиране на този запис в Airtable
-            smart_reply_to(message, "Моля, въведете какво искате да промените: описание, сума или акаунт.")
+            bot.reply_to(message, "Моля, въведете какво искате да промените: описание, сума или акаунт.")
             bot.register_next_step_handler(message, process_edit_field)
         else:
-            smart_reply_to(message, "❌ Невалиден номер на запис. Моля, въведете валиден номер.")
+            bot.reply_to(message, "❌ Невалиден номер на запис. Моля, въведете валиден номер.")
     except ValueError:
-        smart_reply_to(message, "❌ Моля, въведете валиден номер на запис.")
+        bot.reply_to(message, "❌ Моля, въведете валиден номер на запис.")
 
 def process_new_description(message):
     """Обновява описание в Airtable."""
@@ -691,14 +669,14 @@ def process_new_description(message):
         res_put = requests.patch(f"{url_reports}/{record_id}", headers=headers, json=new_data)
 
         if res_put.status_code == 200:
-            smart_reply_to(message, "✅ Записът е редактиран успешно.")
+            bot.reply_to(message, "✅ Записът е редактиран успешно.")
             del user_editing[user_id]  # Изтриваме записа от избраните за редактиране
         else:
             print(f"Error response: {res_put.status_code} - {res_put.text}")  # Печатаме отговора от Airtable
-            smart_reply_to(message, "❌ Грешка при редактирането на записа.")
+            bot.reply_to(message, "❌ Грешка при редактирането на записа.")
             del user_editing[user_id]
     else:
-        smart_reply_to(message, "❌ Не намерихме избрания запис за редактиране.")
+        bot.reply_to(message, "❌ Не намерихме избрания запис за редактиране.")
 
        # Обработчик за новата сума с валута
 def process_new_amount(message):
@@ -726,11 +704,11 @@ def process_new_amount(message):
                 elif currency_str in ("gbp", "£", "паунд", "паунда", "paunda"):
                     new_currency_code = "GBP"
                 else:
-                    smart_reply_to(message, "❌ Моля, въведете валидна валута: лв., EUR, GBP.")
+                    bot.reply_to(message, "❌ Моля, въведете валидна валута: лв., EUR, GBP.")
                     return
 
                 # Записваме новата сума и валута в Airtable
-                smart_reply_to(message, "Моля, потвърдете редакцията на сумата и валутата.")
+                bot.reply_to(message, "Моля, потвърдете редакцията на сумата и валутата.")
                 new_data = {
                     "fields": {
                         "Сума (лв.)" if new_currency_code == "BGN" else "Сума (EUR)" if new_currency_code == "EUR" else "Сума (GBP)": new_amount,
@@ -740,18 +718,18 @@ def process_new_amount(message):
 
                 res_put = requests.patch(f"{url_reports}/{record_id}", headers=headers, json=new_data)
                 if res_put.status_code == 200:
-                    smart_reply_to(message, "✅ Сумата и валутата са успешно актуализирани.")
+                    bot.reply_to(message, "✅ Сумата и валутата са успешно актуализирани.")
                     del user_editing[user_id]  # Изтриваме записа от избраните за редактиране
                 else:
-                    smart_reply_to(message, "❌ Грешка при актуализирането на сумата и валутата.")
+                    bot.reply_to(message, "❌ Грешка при актуализирането на сумата и валутата.")
                     del user_editing[user_id]
             else:
-                smart_reply_to(message, "❌ Моля, въведете валидна сума с валута. Пример: 100 лв., 250 EUR, 50 GBP.")
+                bot.reply_to(message, "❌ Моля, въведете валидна сума с валута. Пример: 100 лв., 250 EUR, 50 GBP.")
         except ValueError:
-            smart_reply_to(message, "❌ Моля, въведете валидна сума.")
+            bot.reply_to(message, "❌ Моля, въведете валидна сума.")
             return
     else:
-        smart_reply_to(message, "❌ Не намерихме избрания запис за редактиране.")
+        bot.reply_to(message, "❌ Не намерихме избрания запис за редактиране.")
 
 # Обработчик за новата валута
 def process_new_currency(message, new_amount):
@@ -767,7 +745,7 @@ def process_new_currency(message, new_amount):
     elif new_currency in ["gbp", "£", "паунд", "паунда", "paunda"]:
         new_currency_code = "GBP"
     else:
-        smart_reply_to(message, "❌ Моля, въведете валидна валута: лв., EUR, GBP.")
+        bot.reply_to(message, "❌ Моля, въведете валидна валута: лв., EUR, GBP.")
         return
 
     # Актуализираме данните за сумата и валутата в Airtable
@@ -783,13 +761,13 @@ def process_new_currency(message, new_amount):
 
         res_put = requests.patch(f"{url_reports}/{record_id}", headers=headers, json=new_data)
         if res_put.status_code == 200:
-            smart_reply_to(message, "✅ Сумата и валутата са успешно актуализирани.")
+            bot.reply_to(message, "✅ Сумата и валутата са успешно актуализирани.")
             del user_editing[user_id]  # Изтриваме записа от избраните за редактиране
         else:
-            smart_reply_to(message, "❌ Грешка при актуализирането на сумата и валутата.")
+            bot.reply_to(message, "❌ Грешка при актуализирането на сумата и валутата.")
             del user_editing[user_id]
     else:
-        smart_reply_to(message, "❌ Не намерихме избрания запис за редактиране.")
+        bot.reply_to(message, "❌ Не намерихме избрания запис за редактиране.")
 
         
 def process_new_account(message):
@@ -819,43 +797,40 @@ def process_new_account(message):
                 new_data = {"fields": {"Акаунт": [account_id]}}
                 res_put = requests.patch(f"{url_reports}/{record_id}", headers=headers, json=new_data)
                 if res_put.status_code == 200:
-                    smart_reply_to(message, "✅ Акаунтът е актуализиран успешно.")
+                    bot.reply_to(message, "✅ Акаунтът е актуализиран успешно.")
                 else:
-                    smart_reply_to(message, "❌ Грешка при актуализирането на акаунта.")
+                    bot.reply_to(message, "❌ Грешка при актуализирането на акаунта.")
             else:
-                smart_reply_to(message, "❌ Не намерихме акаунт с това име.")
+                bot.reply_to(message, "❌ Не намерихме акаунт с това име.")
         else:
-            smart_reply_to(message, "❌ Грешка при търсенето на акаунт.")
+            bot.reply_to(message, "❌ Грешка при търсенето на акаунт.")
     else:
-        smart_reply_to(message, "❌ Не намерихме избрания запис за редактиране.")
+        bot.reply_to(message, "❌ Не намерихме избрания запис за редактиране.")
         
 def get_transaction_types_from_airtable():
             return list(get_transaction_type_options().keys())
     
 # Обработчик за съобщения с финансови отчети
-@bot.message_handler(func=lambda message: (
-    message.chat.type == "private" or
-    (message.chat.id == FIXED_CHAT_ID and getattr(message, "message_thread_id", None) == FIXED_THREAD_ID)
-))
-def handle_message(message):  # 🟢 ЕТО ТОВА ЛИПСВАШЕ!
+@bot.message_handler(func=lambda message: True)
+def handle_message(message):
     text = message.text
     user_id = message.chat.id
     user_name = message.from_user.first_name
-    current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # ⬅️ добави това тук
     
     # 📌 ПЪРВО парсваме съобщението
-    amount, currency_code, description, account_name, is_expense = parse_transaction(text)
+    #amount, currency_code, description, account_name, is_expense = parse_transaction(text)
 
     if amount is None or currency_code is None or description == "":
         reply_text = ("⚠️ Неразпознат формат. Моля, използвайте формат като:\n"
                       "`100 лв. за <описание> от <акаунт>`")
-        smart_reply_to(message, reply_text, parse_mode="Markdown")
+        bot.reply_to(message, reply_text, parse_mode="Markdown")
         return
 
-     #📌 2. Проверката за избран ВИД
+    # 📌 2. Проверката за избран ВИД
     types_list = get_transaction_types_from_airtable()
     if user_id not in user_pending_type or not user_pending_type[user_id].get("selected"):
-         #💾 Записваме парснатата транзакция, за да я използваме след избора
+        # 💾 Записваме парснатата транзакция, за да я използваме след избора
         pending_transaction_data[user_id] = {
             "amount": amount,
             "currency_code": currency_code,
@@ -866,7 +841,7 @@ def handle_message(message):  # 🟢 ЕТО ТОВА ЛИПСВАШЕ!
             "datetime": current_datetime,
         } 
 
-        send_transaction_type_page(chat_id=user_id, page=0, message=message)
+        send_transaction_type_page(chat_id=user_id, page=0)
 
     # 📌 3. Извличане на акаунта
     account_part = ""
@@ -918,30 +893,31 @@ def handle_message(message):  # 🟢 ЕТО ТОВА ЛИПСВАШЕ!
 }
 
 # ✅ Добавяме "ВИД", ако има избран
-    if user_id in user_pending_type:
-        selected_type = user_pending_type[user_id].get("selected")
-        if selected_type:
-            fields["ВИД"] = [selected_type]  # ✅ не забравяй скобите []
-            del user_pending_type[user_id]
+    #if user_id in user_pending_type:
+        #selected_type = user_pending_type[user_id].get("selected")
+        #if selected_type:
+            #fields["ВИД"] = [selected_type]  # ✅ не забравяй скобите []
+            #del user_pending_type[user_id]
 
 
-    if currency_code == "BGN":
-        fields["Сума (лв.)"] = amount
-    elif currency_code == "EUR":
-        fields["Сума (EUR)"] = amount
-    elif currency_code == "GBP":
-        fields["Сума (GBP)"] = amount
+    #if currency_code == "BGN":
+        #fields["Сума (лв.)"] = amount
+    #elif currency_code == "EUR":
+        #fields["Сума (EUR)"] = amount
+    #elif currency_code == "GBP":
+        #fields["Сума (GBP)"] = amount
 
-    if account_id:
-        fields["Акаунт"] = [account_id]  # Ако акаунтът е намерен, добавяме ID на акаунта
-    else:
+    #if account_id:
+        #fields["Акаунт"] = [account_id]  # Ако акаунтът е намерен, добавяме ID на акаунта
+    #else:
         # Ако акаунтът не е намерен, уведомяваме бота и добавяме името на акаунта в описанието
-        reply_text = f"❌ Не намерихме акаунт с име: {account_name}. Записахме акаунта в полето 'Описание'."
-        smart_reply_to(message, reply_text)
-        fields["Описание"] = f"{description} (Акаунт: {account_name})"
+        #reply_text = f"❌ Не намерихме акаунт с име: {account_name}. Записахме акаунта в полето 'Описание'."
+        #bot.reply_to(message, reply_text)
+        #fields["Описание"] = f"{description} (Акаунт: {account_name})"
 
     # Добавяме името на потребителя
-    fields["Име на потребителя"] = user_name  # Добавяме името на потребителя в новото поле
+    #fields["Име на потребителя"] = user_name  # Добавяме името на потребителя в новото поле
+
 
 WEBHOOK_URL = f"{os.getenv('WEBHOOK_BASE_URL')}/bot{TELEGRAM_BOT_TOKEN}"
 
