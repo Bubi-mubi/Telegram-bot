@@ -13,6 +13,10 @@ AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")  # ID на Airtable базат�
 TABLE_ACCOUNTS = "ВСИЧКИ АКАУНТИ"
 TABLE_REPORTS = "Отчет Телеграм"
 TABLE_TRANSACTION_TYPES = "ВИД ТРАНЗАКЦИЯ"
+# 👉 Конкретният форум в групата, където искаш ботът да отговаря
+FIXED_CHAT_ID = -1002353499188     # <--- това е от /id
+FIXED_THREAD_ID = 2657             # <--- това също от /id
+
 
 # Подготовка на URL и headers за Airtable API
 url_accounts = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{TABLE_ACCOUNTS}"
@@ -811,12 +815,15 @@ def get_transaction_types_from_airtable():
             return list(get_transaction_type_options().keys())
     
 # Обработчик за съобщения с финансови отчети
-@bot.message_handler(func=lambda message: True)
-def handle_message(message):
+@bot.message_handler(func=lambda message: (
+    (message.chat.type == "private") or
+    (message.chat.id == FIXED_CHAT_ID and message.message_thread_id == FIXED_THREAD_ID)
+))
+def handle_message(message):  # 🟢 ЕТО ТОВА ЛИПСВАШЕ!
     text = message.text
     user_id = message.chat.id
     user_name = message.from_user.first_name
-    current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # ⬅️ добави това тук
+    current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     # 📌 ПЪРВО парсваме съобщението
     amount, currency_code, description, account_name, is_expense = parse_transaction(text)
