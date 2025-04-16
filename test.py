@@ -275,8 +275,11 @@ def send_transaction_type_page(chat_id, page=0, filtered_types=None):
     # 📬 Изпращане на съобщението
     msg = bot.send_message(chat_id, "📌 Моля, изберете ВИД на транзакцията:", reply_markup=markup)
 
+    if user_id is None:
+        user_id = chat_id
+
     # 💾 Запазваме състоянието
-    user_pending_type[chat_id] = {
+    user_pending_type[user_id] = {
         "msg_id": msg.message_id,
         "options": all_types,
         "page": page,
@@ -853,7 +856,7 @@ def handle_message(message):
             "datetime": current_datetime,
     } 
 
-        send_transaction_type_page(chat_id=user_id, page=0)
+        send_transaction_type_page(chat_id=user_id, page=0, user_id=message.from_user.id)
 
         return 
 
