@@ -811,12 +811,12 @@ def get_transaction_types_from_airtable():
             return list(get_transaction_type_options().keys())
     
 # Обработчик за съобщения с финансови отчети
-@bot.message_handler(func=lambda message: True)
-def handle_message(message):
-    text = message.text
-    user_id = message.chat.id
-    user_name = message.from_user.first_name
-    current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # ⬅️ добави това тук
+#@bot.message_handler(func=lambda message: True)
+#def handle_message(message):
+    #text = message.text
+    #user_id = message.chat.id
+    #user_name = message.from_user.first_name
+    #current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # ⬅️ добави това тук
     
     # 📌 ПЪРВО парсваме съобщението
     amount, currency_code, description, account_name, is_expense = parse_transaction(text)
@@ -920,15 +920,14 @@ def handle_message(message):
 
 @bot.message_handler(func=lambda message: True)
 def debug_topic_info(message):
-    print(f"📥 Получено съобщение:")
-    print(f"🔸 Chat title: {message.chat.title}")
+    print("📥 Получено съобщение:")
     print(f"🔸 Chat ID: {message.chat.id}")
     print(f"🔸 From user: {message.from_user.first_name}")
-    print(f"🔸 Thread ID (message_thread_id): {getattr(message, 'message_thread_id', None)}")
+    print(f"🔸 Message thread ID: {getattr(message, 'message_thread_id', None)}")
 
     bot.reply_to(
         message,
-        f"📌 Chat ID: `{message.chat.id}`\n🧵 Topic ID: `{getattr(message, 'message_thread_id', 'None')}`",
+        f"📌 Chat ID: `{message.chat.id}`\n🧵 Thread ID: `{getattr(message, 'message_thread_id', 'None')}`",
         parse_mode="Markdown"
     )
 
