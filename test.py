@@ -819,26 +819,26 @@ def get_transaction_types_from_airtable():
     #current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # ⬅️ добави това тук
     
     # 📌 ПЪРВО парсваме съобщението
-    amount, currency_code, description, account_name, is_expense = parse_transaction(text)
+    #amount, currency_code, description, account_name, is_expense = parse_transaction(text)
 
-    if amount is None or currency_code is None or description == "":
-        reply_text = ("⚠️ Неразпознат формат. Моля, използвайте формат като:\n"
+    #if amount is None or currency_code is None or description == "":
+        #reply_text = ("⚠️ Неразпознат формат. Моля, използвайте формат като:\n"
                       "`100 лв. за <описание> от <акаунт>`")
-        bot.reply_to(message, reply_text, parse_mode="Markdown")
-        return
+        #bot.reply_to(message, reply_text, parse_mode="Markdown")
+        #return
 
     # 📌 2. Проверката за избран ВИД
-    types_list = get_transaction_types_from_airtable()
-    if user_id not in user_pending_type or not user_pending_type[user_id].get("selected"):
+    #types_list = get_transaction_types_from_airtable()
+    #if user_id not in user_pending_type or not user_pending_type[user_id].get("selected"):
         # 💾 Записваме парснатата транзакция, за да я използваме след избора
-        pending_transaction_data[user_id] = {
-            "amount": amount,
-            "currency_code": currency_code,
-            "description": description,
-            "account_name": account_name,
-            "is_expense": is_expense,
-            "user_name": user_name,
-            "datetime": current_datetime,
+        #pending_transaction_data[user_id] = {
+            #"amount": amount,
+            #"currency_code": currency_code,
+            #"description": description,
+            #"account_name": account_name,
+            #"is_expense": is_expense,
+            #"user_name": user_name,
+            #"datetime": current_datetime,
         }
 
         send_transaction_type_page(chat_id=user_id, page=0)
