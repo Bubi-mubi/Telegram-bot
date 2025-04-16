@@ -14,10 +14,6 @@ TABLE_ACCOUNTS = "ВСИЧКИ АКАУНТИ"
 TABLE_REPORTS = "Отчет Телеграм"
 TABLE_TRANSACTION_TYPES = "ВИД ТРАНЗАКЦИЯ"
 
-# 👉 Фиксирани Chat ID и Thread ID за съобщения
-FIXED_CHAT_ID = -1002353499188   # замени с твоето от /id
-FIXED_THREAD_ID = 2657             # замени с твоето от /id
-
 # Подготовка на URL и headers за Airtable API
 url_accounts = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{TABLE_ACCOUNTS}"
 url_reports = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{TABLE_REPORTS}"
@@ -275,11 +271,8 @@ def send_transaction_type_page(chat_id, page=0, filtered_types=None):
     # 📬 Изпращане на съобщението
     msg = bot.send_message(chat_id, "📌 Моля, изберете ВИД на транзакцията:", reply_markup=markup)
 
-    if user_id is None:
-        user_id = chat_id
-
     # 💾 Запазваме състоянието
-    user_pending_type[user_id] = {
+    user_pending_type[chat_id] = {
         "msg_id": msg.message_id,
         "options": all_types,
         "page": page,
@@ -465,9 +458,6 @@ def handle_transaction_type_selection(call):
 # Обработчик за командата "/edit"
 @bot.message_handler(commands=['edit'])
 def handle_edit(message):
-    #if message.chat.id != FIXED_CHAT_ID or message.message_thread_id != FIXED_THREAD_ID:
-        #return  # Игнорирай съобщението, ако не е от правилната тема
-    
     user_id = message.chat.id
     user_name = message.from_user.first_name
 
@@ -565,9 +555,6 @@ def update_amount(message):
         
 @bot.message_handler(commands=['delete'])
 def handle_delete(message):
-    if message.chat.id != FIXED_CHAT_ID or message.message_thread_id != FIXED_THREAD_ID:
-        return  # Игнорирай съобщението, ако не е от правилната тема
-    
     user_id = message.chat.id
     user_name = message.from_user.first_name
 
@@ -826,8 +813,6 @@ def get_transaction_types_from_airtable():
 # Обработчик за съобщения с финансови отчети
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
-    if message.chat.id != FIXED_CHAT_ID or message.message_thread_id != FIXED_THREAD_ID:
-        return  # Игнорирай съобщението, ако не е от правилната тема
     text = message.text
     user_id = message.chat.id
     user_name = message.from_user.first_name
@@ -842,10 +827,10 @@ def handle_message(message):
         bot.reply_to(message, reply_text, parse_mode="Markdown")
         return
 
-    # 📌 2. Проверката за избран ВИД
+     📌 2. Проверката за избран ВИД
     types_list = get_transaction_types_from_airtable()
     if user_id not in user_pending_type or not user_pending_type[user_id].get("selected"):
-        print("🔔 Изпращаме бутони за ВИД...")
+         💾 Записваме парснатата транзакция, за да я използваме след избора
         pending_transaction_data[user_id] = {
             "amount": amount,
             "currency_code": currency_code,
@@ -854,14 +839,11 @@ def handle_message(message):
             "is_expense": is_expense,
             "user_name": user_name,
             "datetime": current_datetime,
-    } 
+        } 
 
-        send_transaction_type_page(chat_id=user_id, page=0, user_id=message.from_user.id)
+        send_transaction_type_page(chat_id=user_id, page=0)
 
-        return 
-
-
-     #📌 3. Извличане на акаунта
+    # 📌 3. Извличане на акаунта
     account_part = ""
     if re.search(r'\bот\b', text, re.IGNORECASE):
         account_part = re.split(r'\bот\b', text, flags=re.IGNORECASE)[-1].strip()
@@ -904,22 +886,20 @@ def handle_message(message):
         else:
             print(f"Error searching account: HTTP {res.status_code} - {res.text}")      
 
-        # 📌 1. Създаваме базовата структура
+    # Подготовка на данните за новия запис в "Отчет Телеграм"
     fields = {
-        "Дата": current_datetime,
-        "Описание": description,
-        "Име на потребителя": user_name,
-        "Telegram Username": message.from_user.username or "без username"
-    }
+    "Дата": current_datetime,
+    "Описание": description,
+}
 
-    # ✅ 2. Добавяме ВИД (ако е избран)
+# ✅ Добавяме "ВИД", ако има избран
     if user_id in user_pending_type:
         selected_type = user_pending_type[user_id].get("selected")
         if selected_type:
-            fields["ВИД"] = [selected_type]
+            fields["ВИД"] = [selected_type]  # ✅ не забравяй скобите []
             del user_pending_type[user_id]
 
-    # 💸 3. Добавяме сума според валутата
+
     if currency_code == "BGN":
         fields["Сума (лв.)"] = amount
     elif currency_code == "EUR":
@@ -927,21 +907,16 @@ def handle_message(message):
     elif currency_code == "GBP":
         fields["Сума (GBP)"] = amount
 
-    # 🏦 4. Добавяме акаунта (или го вписваме в описанието)
     if account_id:
-        fields["Акаунт"] = [account_id]
+        fields["Акаунт"] = [account_id]  # Ако акаунтът е намерен, добавяме ID на акаунта
     else:
-        bot.reply_to(message, f"❌ Не намерихме акаунт с име: {account_name}. Записахме го в описанието.")
+        # Ако акаунтът не е намерен, уведомяваме бота и добавяме името на акаунта в описанието
+        reply_text = f"❌ Не намерихме акаунт с име: {account_name}. Записахме акаунта в полето 'Описание'."
+        bot.reply_to(message, reply_text)
         fields["Описание"] = f"{description} (Акаунт: {account_name})"
 
-        # 🚀 Запис в Airtable
-    data = {"fields": fields}
-    res_post = requests.post(url_reports, headers=headers, json=data)
-
-    if res_post.status_code in (200, 201):
-        bot.reply_to(message, "✅ Отчетът е записан успешно.")
-    else:
-        bot.reply_to(message, f"❌ Грешка при записването: {res_post.text}")
+    # Добавяме името на потребителя
+    fields["Име на потребителя"] = user_name  # Добавяме името на потребителя в новото поле
 
 WEBHOOK_URL = f"{os.getenv('WEBHOOK_BASE_URL')}/bot{TELEGRAM_BOT_TOKEN}"
 
@@ -956,7 +931,6 @@ app = Flask(__name__)
 
 @app.route(f"/bot{TELEGRAM_BOT_TOKEN}", methods=['POST'])
 def receive_update():
-    print("✅ Получихме ново съобщение!")
     json_str = request.get_data().decode('utf-8')
     update = telebot.types.Update.de_json(json_str)
     bot.process_new_updates([update])
@@ -964,4 +938,3 @@ def receive_update():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-
