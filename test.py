@@ -465,8 +465,8 @@ def handle_transaction_type_selection(call):
 # Обработчик за командата "/edit"
 @bot.message_handler(commands=['edit'])
 def handle_edit(message):
-    if message.chat.id != FIXED_CHAT_ID or message.message_thread_id != FIXED_THREAD_ID:
-        return  # Игнорирай съобщението, ако не е от правилната тема
+    #if message.chat.id != FIXED_CHAT_ID or message.message_thread_id != FIXED_THREAD_ID:
+        #return  # Игнорирай съобщението, ако не е от правилната тема
     
     user_id = message.chat.id
     user_name = message.from_user.first_name
@@ -956,6 +956,7 @@ app = Flask(__name__)
 
 @app.route(f"/bot{TELEGRAM_BOT_TOKEN}", methods=['POST'])
 def receive_update():
+    print("✅ Получихме ново съобщение!")
     json_str = request.get_data().decode('utf-8')
     update = telebot.types.Update.de_json(json_str)
     bot.process_new_updates([update])
