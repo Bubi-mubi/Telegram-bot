@@ -839,7 +839,7 @@ def get_transaction_types_from_airtable():
             #"is_expense": is_expense,
             #"user_name": user_name,
             #"datetime": current_datetime,
-        }
+        #} 
 
         send_transaction_type_page(chat_id=user_id, page=0)
 
