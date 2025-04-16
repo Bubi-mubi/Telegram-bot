@@ -827,7 +827,7 @@ def handle_message(message):
         bot.reply_to(message, reply_text, parse_mode="Markdown")
         return
 
-     📌 2. Проверката за избран ВИД
+     #📌 2. Проверката за избран ВИД
     types_list = get_transaction_types_from_airtable()
     if user_id not in user_pending_type or not user_pending_type[user_id].get("selected"):
          💾 Записваме парснатата транзакция, за да я използваме след избора
