@@ -844,79 +844,79 @@ def get_transaction_types_from_airtable():
         #send_transaction_type_page(chat_id=user_id, page=0)
 
     # 📌 3. Извличане на акаунта
-    account_part = ""
-    if re.search(r'\bот\b', text, re.IGNORECASE):
-        account_part = re.split(r'\bот\b', text, flags=re.IGNORECASE)[-1].strip()
-    elif re.search(r'\bot\b', text, re.IGNORECASE):
-        account_part = re.split(r'\bot\b', text, flags=re.IGNORECASE)[-1].strip()
+    #account_part = ""
+    #if re.search(r'\bот\b', text, re.IGNORECASE):
+        #account_part = re.split(r'\bот\b', text, flags=re.IGNORECASE)[-1].strip()
+    #elif re.search(r'\bot\b', text, re.IGNORECASE):
+        #account_part = re.split(r'\bot\b', text, flags=re.IGNORECASE)[-1].strip()
 
     # Почистваме акаунта и създаваме ключови думи
-    normalized_input = re.sub(r"[^\w\s]", " ", account_part).lower()
-    keywords = normalized_input.split()
+    #normalized_input = re.sub(r"[^\w\s]", " ", account_part).lower()
+    #keywords = normalized_input.split()
 
     # Конструираме частта с нормализиране на полето REG
-    norm_reg = 'REGEX_REPLACE(LOWER({REG}), "[^0-9a-z ]", " ")'
+    #norm_reg = 'REGEX_REPLACE(LOWER({REG}), "[^0-9a-z ]", " ")'
 
     # Изграждаме условие за всяка дума: SEARCH("дума", нормализиран REG) > 0
-    conditions = [f'SEARCH(\"{w}\", {norm_reg}) > 0' for w in keywords]
+    #conditions = [f'SEARCH(\"{w}\", {norm_reg}) > 0' for w in keywords]
 
     # Свързваме всички условия с AND(...)
-    formula_filter = "AND(" + ", ".join(conditions) + ")"
+    #formula_filter = "AND(" + ", ".join(conditions) + ")"
 
     # Търсене на акаунта в Airtable ("ВСИЧКИ АКАУНТИ") по колоната REG с частично съвпадение
-    account_id = None
-    if account_name:
+    #account_id = None
+    #if account_name:
         # Почистване на акаунта и търсения текст
-        search_term = clean_string(account_name.strip())
+        #search_term = clean_string(account_name.strip())
 
         # Изпращаме заявка към Airtable API
-        params = {"filterByFormula": formula_filter}
-        res = requests.get(url_accounts, headers=headers, params=params)
+        #params = {"filterByFormula": formula_filter}
+        #res = requests.get(url_accounts, headers=headers, params=params)
 
-        print(f"Search response: {res.text}")  # Това ще ни покаже отговора от Airtable
+        #print(f"Search response: {res.text}")  # Това ще ни покаже отговора от Airtable
 
-        if res.status_code == 200:
-            data = res.json()
-            records = data.get("records", [])
-            if len(records) > 0:
-                account_id = records[0]["id"]  # ID на намерения запис
-                print(f"Account found: {account_id}")
-            else:
-                print("No account found.")
-        else:
-            print(f"Error searching account: HTTP {res.status_code} - {res.text}")      
+        #if res.status_code == 200:
+            #data = res.json()
+            #records = data.get("records", [])
+            #if len(records) > 0:
+                #account_id = records[0]["id"]  # ID на намерения запис
+                #print(f"Account found: {account_id}")
+            #else:
+                #print("No account found.")
+        #else:
+            #print(f"Error searching account: HTTP {res.status_code} - {res.text}")      
 
     # Подготовка на данните за новия запис в "Отчет Телеграм"
-    fields = {
-    "Дата": current_datetime,
-    "Описание": description,
-}
+    #fields = {
+    #"Дата": current_datetime,
+    #"Описание": description,
+#}
 
 # ✅ Добавяме "ВИД", ако има избран
-    if user_id in user_pending_type:
-        selected_type = user_pending_type[user_id].get("selected")
-        if selected_type:
-            fields["ВИД"] = [selected_type]  # ✅ не забравяй скобите []
-            del user_pending_type[user_id]
+    #if user_id in user_pending_type:
+        #selected_type = user_pending_type[user_id].get("selected")
+        #if selected_type:
+            #fields["ВИД"] = [selected_type]  # ✅ не забравяй скобите []
+            #del user_pending_type[user_id]
 
 
-    if currency_code == "BGN":
-        fields["Сума (лв.)"] = amount
-    elif currency_code == "EUR":
-        fields["Сума (EUR)"] = amount
-    elif currency_code == "GBP":
-        fields["Сума (GBP)"] = amount
+    #if currency_code == "BGN":
+        #fields["Сума (лв.)"] = amount
+    #elif currency_code == "EUR":
+        #fields["Сума (EUR)"] = amount
+    #elif currency_code == "GBP":
+        #fields["Сума (GBP)"] = amount
 
-    if account_id:
-        fields["Акаунт"] = [account_id]  # Ако акаунтът е намерен, добавяме ID на акаунта
-    else:
+    #if account_id:
+        #fields["Акаунт"] = [account_id]  # Ако акаунтът е намерен, добавяме ID на акаунта
+    #else:
         # Ако акаунтът не е намерен, уведомяваме бота и добавяме името на акаунта в описанието
-        reply_text = f"❌ Не намерихме акаунт с име: {account_name}. Записахме акаунта в полето 'Описание'."
-        bot.reply_to(message, reply_text)
-        fields["Описание"] = f"{description} (Акаунт: {account_name})"
+        #reply_text = f"❌ Не намерихме акаунт с име: {account_name}. Записахме акаунта в полето 'Описание'."
+        #bot.reply_to(message, reply_text)
+        #fields["Описание"] = f"{description} (Акаунт: {account_name})"
 
     # Добавяме името на потребителя
-    fields["Име на потребителя"] = user_name  # Добавяме името на потребителя в новото поле
+    #fields["Име на потребителя"] = user_name  # Добавяме името на потребителя в новото поле
 
 @bot.message_handler(func=lambda message: True)
 def debug_topic_info(message):
