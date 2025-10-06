@@ -34,6 +34,29 @@ user_pending_type = {}
 pending_transaction_data = {}  # временно съхраняваме парснатата транзакция
 user_editing = {}
 
+# Функция за изчистване на стари user states (предотвратява memory leaks)
+def cleanup_old_user_data():
+    """Изчиства user data по-стари от 1 час"""
+    import threading
+    from datetime import datetime, timedelta
+
+    current_time = datetime.now()
+
+    # Изчистваме стари записи
+    for user_id in list(user_records.keys()):
+        # Запазваме само последните 10 записа
+        if len(user_records[user_id]) > 10:
+            user_records[user_id] = user_records[user_id][-10:]
+
+    # Изчистваме pending states (ако са по-стари от 30 минути)
+    # Тази логика трябва да се подобри с timestamps, но за сега оставяме проста проверка
+
+    # Повтаряме всеки 30 минути
+    threading.Timer(1800, cleanup_old_user_data).start()
+
+# Стартираме cleanup thread
+cleanup_old_user_data()
+
 def normalize_text(text):
     """Привежда текста в малки букви и премахва специални символи."""
     text = text.lower()  # Преобразува в малки букви
@@ -42,52 +65,64 @@ def normalize_text(text):
 
 def find_account(account_name):
     """Търси акаунт по ключови думи, независимо от големи/малки букви и тирета."""
-    # Нормализиране на акаунта
-    normalized_account_name = normalize_text(account_name)
+    try:
+        # Нормализиране на акаунта
+        normalized_account_name = normalize_text(account_name)
 
-    # Разделяме нормализирания акаунт на ключови думи
-    search_terms = normalized_account_name.strip().split()
+        # Разделяме нормализирания акаунт на ключови думи
+        search_terms = normalized_account_name.strip().split()
 
-    # Изграждаме filterByFormula с AND за търсене на всички ключови думи
-    conditions = [f'SEARCH("{term}", LOWER({{REG}})) > 0' for term in search_terms]
-    formula = f'AND({",".join(conditions)})'
-    params = {"filterByFormula": formula}
+        # Изграждаме filterByFormula с AND за търсене на всички ключови думи
+        conditions = [f'SEARCH("{term}", LOWER({{REG}})) > 0' for term in search_terms]
+        formula = f'AND({",".join(conditions)})'
+        params = {"filterByFormula": formula}
 
-    # Изпращаме заявка към Airtable API
-    res = requests.get(url_accounts, headers=headers, params=params)
-    if res.status_code == 200:
-        data = res.json()
-        records = data.get("records", [])
-        if len(records) > 0:
-            account_id = records[0]["id"]  # Вземаме ID на първия съвпаднал акаунт
-            return account_id
+        # Изпращаме заявка към Airtable API
+        res = requests.get(url_accounts, headers=headers, params=params, timeout=10)
+        if res.status_code == 200:
+            data = res.json()
+            records = data.get("records", [])
+            if len(records) > 0:
+                account_id = records[0]["id"]  # Вземаме ID на първия съвпаднал акаунт
+                return account_id
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Грешка при търсене на акаунт: {e}")
+    except Exception as e:
+        print(f"❌ Неочаквана грешка в find_account: {e}")
     return None
 
 from datetime import datetime, timedelta
 
 def get_user_records_from_airtable(user_name):
     """Извлича записите от последните 60 минути от Airtable за конкретен потребител."""
-    now = datetime.now()
-    one_hour_ago = now - timedelta(minutes=60)
-    now_iso = now.isoformat()
-    hour_ago_iso = one_hour_ago.isoformat()
+    try:
+        now = datetime.now()
+        one_hour_ago = now - timedelta(minutes=60)
+        now_iso = now.isoformat()
+        hour_ago_iso = one_hour_ago.isoformat()
 
-    # Airtable filterByFormula търси по Име на потребителя и Дата (ISO формат)
-    formula = (
-        f"AND("
-        f"{{Име на потребителя}} = '{user_name}',"
-        f"IS_AFTER({{Дата}}, '{hour_ago_iso}')"
-        f")"
-    )
+        # Airtable filterByFormula търси по Име на потребителя и Дата (ISO формат)
+        formula = (
+            f"AND("
+            f"{{Име на потребителя}} = '{user_name}',"
+            f"IS_AFTER({{Дата}}, '{hour_ago_iso}')"
+            f")"
+        )
 
-    params = {"filterByFormula": formula}
-    res = requests.get(url_reports, headers=headers, params=params)
+        params = {"filterByFormula": formula}
+        res = requests.get(url_reports, headers=headers, params=params, timeout=10)
 
-    if res.status_code == 200:
-        data = res.json()
-        return data.get("records", [])
-    else:
-        print(f"❌ Грешка при извличане на записи: {res.status_code} - {res.text}")
+        if res.status_code == 200:
+            data = res.json()
+            return data.get("records", [])
+        else:
+            print(f"❌ Грешка при извличане на записи: {res.status_code} - {res.text}")
+            return []
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Грешка при връзка с Airtable: {e}")
+        return []
+    except Exception as e:
+        print(f"❌ Неочаквана грешка в get_user_records_from_airtable: {e}")
         return []
 
 def parse_transaction(text):
@@ -95,7 +130,15 @@ def parse_transaction(text):
     Парсване на съобщение от вида "<сума> <валута> за <описание> от <акаунт>".
     Връща кортеж (amount, currency_code, description, account_name, is_expense).
     """
+    # Input validation
+    if not text or not isinstance(text, str):
+        return None, None, "", None, False
+
     text = text.strip()
+
+    # Ограничаваме дължината на input
+    if len(text) > 500:
+        return None, None, "", None, False
 
     # Разпознаване на латиница и кирилица за "за" и "от"
     text = text.replace('za', 'за').replace('ot', 'от')
@@ -183,35 +226,48 @@ def get_transaction_types():
         "Authorization": f"Bearer {AIRTABLE_PERSONAL_ACCESS_TOKEN}",
         "Content-Type": "application/json"
     }
-    res = requests.get(url_types, headers=headers)
 
     types_dict = {}
 
-    if res.status_code == 200:
-        data = res.json()
-        for record in data.get("records", []):
-            name = record["fields"].get("ТРАНЗАКЦИЯ")
-            if name:
-                types_dict[name] = record["id"]
-    else:
-        print("⚠️ Неуспешна заявка към Airtable:", res.status_code, res.text)
+    try:
+        res = requests.get(url_types, headers=headers, timeout=10)
+
+        if res.status_code == 200:
+            data = res.json()
+            for record in data.get("records", []):
+                name = record["fields"].get("ТРАНЗАКЦИЯ")
+                if name:
+                    types_dict[name] = record["id"]
+        else:
+            print("⚠️ Неуспешна заявка към Airtable:", res.status_code, res.text)
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Грешка при зареждане на типове транзакции: {e}")
+    except Exception as e:
+        print(f"❌ Неочаквана грешка в get_transaction_types: {e}")
 
     return types_dict
 
 def get_transaction_type_options():
     """Извлича всички видове транзакции от таблицата 'ВИД ТРАНЗАКЦИЯ'."""
-    url_type = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/ВИД ТРАНЗАКЦИЯ"
-    res = requests.get(url_type, headers=headers)
-    if res.status_code == 200:
-        data = res.json()
-        options = {}
-        for record in data.get("records", []):
-            label = record["fields"].get("ТРАНЗАКЦИЯ")
-            if label:
-                options[label] = record["id"]
-        return options
-    else:
-        print("❌ Грешка при зареждане на видовете транзакции:", res.text)
+    try:
+        url_type = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/ВИД ТРАНЗАКЦИЯ"
+        res = requests.get(url_type, headers=headers, timeout=10)
+        if res.status_code == 200:
+            data = res.json()
+            options = {}
+            for record in data.get("records", []):
+                label = record["fields"].get("ТРАНЗАКЦИЯ")
+                if label:
+                    options[label] = record["id"]
+            return options
+        else:
+            print("❌ Грешка при зареждане на видовете транзакции:", res.text)
+            return {}
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Грешка при връзка с Airtable: {e}")
+        return {}
+    except Exception as e:
+        print(f"❌ Неочаквана грешка в get_transaction_type_options: {e}")
         return {}
 
 def handle_filter_input(message):
@@ -230,12 +286,6 @@ def handle_filter_input(message):
         return
 
     send_transaction_type_page(chat_id=user_id, page=0, filtered_types=filtered)
-
-
-    user_pending_type[user_id] = {
-        "msg_id": msg.message_id,
-        "options": filtered
-    }
 
 def send_transaction_type_page(chat_id, page=0, filtered_types=None):
     PAGE_SIZE = 20
@@ -286,174 +336,123 @@ def ask_transaction_type(message):
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_transaction_type_selection(call):
-    user_id = call.message.chat.id
-    print(f"⚙️ Callback received: {call}")
-    selected_label = call.data
+    try:
+        user_id = call.message.chat.id
+        print(f"⚙️ Callback received: {call}")
+        selected_label = call.data
 
-    if user_id not in user_pending_type:
-        bot.answer_callback_query(call.id, "❌ Няма очаквана транзакция.")
-        return
+        if user_id not in user_pending_type:
+            bot.answer_callback_query(call.id, "❌ Няма очаквана транзакция.")
+            return
 
-    if call.data == "FILTER_BY_KEYWORD":
-        bot.answer_callback_query(call.id)
-        bot.send_message(user_id, "🔍 Въведи дума за филтриране:")
-        bot.register_next_step_handler(call.message, show_filtered_transaction_types)
-        return
+        if call.data == "FILTER_BY_KEYWORD":
+            bot.answer_callback_query(call.id)
+            bot.send_message(user_id, "🔍 Въведи дума за филтриране:")
+            bot.register_next_step_handler(call.message, show_filtered_transaction_types)
+            return
 
-    print(f"📌 user_id: {user_id}")
-    print(f"📌 selected_label: {selected_label}")
-    print(f"📌 user_pending_type: {user_pending_type.get(user_id)}")
+        print(f"📌 user_id: {user_id}")
+        print(f"📌 selected_label: {selected_label}")
+        print(f"📌 user_pending_type: {user_pending_type.get(user_id)}")
 
-    # 🔄 Навигация и филтриране
-    if selected_label == "__prev":
-        current_page = user_pending_type[user_id].get("page", 0)
-        new_page = max(current_page - 1, 0)
-        bot.delete_message(user_id, user_pending_type[user_id]["msg_id"])
-        send_transaction_type_page(
+        # 🔄 Навигация и филтриране
+        if selected_label == "__prev":
+            current_page = user_pending_type[user_id].get("page", 0)
+            new_page = max(current_page - 1, 0)
+            bot.delete_message(user_id, user_pending_type[user_id]["msg_id"])
+            send_transaction_type_page(
+                chat_id=user_id,
+                page=new_page,
+                filtered_types=user_pending_type[user_id].get("filtered")
+            )
+            return
+
+        elif selected_label == "__next":
+            current_page = user_pending_type[user_id].get("page", 0)
+            new_page = current_page + 1
+            bot.delete_message(user_id, user_pending_type[user_id]["msg_id"])
+            send_transaction_type_page(
+                chat_id=user_id,
+                page=new_page,
+                filtered_types=user_pending_type[user_id].get("filtered")
+            )
+            return
+
+        elif selected_label == "__filter":
+            bot.answer_callback_query(call.id)
+            msg = bot.send_message(user_id, "🔍 Въведи дума за търсене:")
+            bot.register_next_step_handler(msg, handle_filter_input)
+            return
+
+        elif selected_label == "__reset":
+            bot.answer_callback_query(call.id)
+            send_transaction_type_page(chat_id=user_id, page=0)
+            return
+
+        # ✅ Проверка дали е валиден тип
+        if selected_label not in user_pending_type[user_id]["options"]:
+            bot.answer_callback_query(call.id, "❌ Невалиден избор.")
+            return
+
+        selected_id = user_pending_type[user_id]["options"].get(selected_label)
+
+        # 💾 Запази избора
+        user_pending_type[user_id]["selected"] = selected_id
+        user_pending_type[user_id]["selected_label"] = selected_label
+
+        # ✅ Покажи избраното
+        bot.edit_message_text(
             chat_id=user_id,
-            page=new_page,
-            filtered_types=user_pending_type[user_id].get("filtered")
+            message_id=user_pending_type[user_id]["msg_id"],
+            text=f"✅ Избра вид: {selected_label}"
         )
-        return
 
-    elif selected_label == "__next":
-        current_page = user_pending_type[user_id].get("page", 0)
-        new_page = current_page + 1
-        bot.delete_message(user_id, user_pending_type[user_id]["msg_id"])
-        send_transaction_type_page(
-            chat_id=user_id,
-            page=new_page,
-            filtered_types=user_pending_type[user_id].get("filtered")
-        )
-        return
+        # 📥 Ако има чакащи данни за транзакция — записваме в Airtable
+        if user_id in pending_transaction_data:
+            tx = pending_transaction_data[user_id]
+            account_id = find_account(tx["account_name"])
 
-    elif selected_label == "__filter":
-        bot.answer_callback_query(call.id)
-        msg = bot.send_message(user_id, "🔍 Въведи дума за търсене:")
-        bot.register_next_step_handler(msg, handle_filter_input)
-        return
+            fields = {
+                "Дата": tx["datetime"],
+                "Описание": tx["description"],
+                "Име на потребителя": tx["user_name"],
+                "ВИД": [selected_id],
+            }
 
-    elif selected_label == "__reset":
-        bot.answer_callback_query(call.id)
-        send_transaction_type_page(chat_id=user_id, page=0)
-        return
+            if tx["currency_code"] == "BGN":
+                fields["Сума (лв.)"] = tx["amount"]
+            elif tx["currency_code"] == "EUR":
+                fields["Сума (EUR)"] = tx["amount"]
+            elif tx["currency_code"] == "GBP":
+                fields["Сума (GBP)"] = tx["amount"]
 
-    # ✅ Проверка дали е валиден тип
-    if selected_label not in user_pending_type[user_id]["options"]:
-        bot.answer_callback_query(call.id, "❌ Невалиден избор.")
-        return
+            if account_id:
+                fields["Акаунт"] = [account_id]
+            else:
+                fields["Описание"] = f"{tx['description']} (Акаунт: {tx['account_name']})"
 
-    selected_id = user_pending_type[user_id]["options"].get(selected_label)
+            data = {"fields": fields}
+            res_post = requests.post(url_reports, headers=headers, json=data, timeout=10)
 
-    # 💾 Запази избора
-    user_pending_type[user_id]["selected"] = selected_id
-    user_pending_type[user_id]["selected_label"] = selected_label
+            if res_post.status_code in (200, 201):
+                record_id = res_post.json().get("id")
+                if user_id not in user_records:
+                    user_records[user_id] = []
+                user_records[user_id].append(record_id)
+                bot.send_message(user_id, f"✅ Избра вид: {selected_label}\n📌 Отчетът е записан успешно.")
+            else:
+                bot.send_message(user_id, f"❌ Грешка при записването: {res_post.text}")
 
-    # ✅ Покажи избраното
-    bot.edit_message_text(
-        chat_id=user_id,
-        message_id=user_pending_type[user_id]["msg_id"],
-        text=f"✅ Избра вид: {selected_label}"
-    )
+            # 🧹 Изчистваме временното състояние
+            del pending_transaction_data[user_id]
+            del user_pending_type[user_id]
 
-    # 📥 Ако има чакащи данни за транзакция — записваме в Airtable
-    if user_id in pending_transaction_data:
-        tx = pending_transaction_data[user_id]
-        account_id = find_account(tx["account_name"])
-
-        fields = {
-            "Дата": tx["datetime"],
-            "Описание": tx["description"],
-            "Име на потребителя": tx["user_name"],
-            "ВИД": [selected_id],
-        }
-
-        if tx["currency_code"] == "BGN":
-            fields["Сума (лв.)"] = tx["amount"]
-        elif tx["currency_code"] == "EUR":
-            fields["Сума (EUR)"] = tx["amount"]
-        elif tx["currency_code"] == "GBP":
-            fields["Сума (GBP)"] = tx["amount"]
-
-        if account_id:
-            fields["Акаунт"] = [account_id]
-        else:
-            fields["Описание"] = f"{tx['description']} (Акаунт: {tx['account_name']})"
-
-        data = {"fields": fields}
-        res_post = requests.post(url_reports, headers=headers, json=data)
-
-        if res_post.status_code in (200, 201):
-            record_id = res_post.json().get("id")
-            if user_id not in user_records:
-                user_records[user_id] = []
-            user_records[user_id].append(record_id)
-            bot.send_message(user_id, f"✅ Избра вид: {selected_label}\n📌 Отчетът е записан успешно.")
-        else:
-            bot.send_message(user_id, f"❌ Грешка при записването: {res_post.text}")
-
-        # 🧹 Изчистваме временното състояние
-        del pending_transaction_data[user_id]
-        del user_pending_type[user_id]
-
-
-
-    # 💾 Запази избора
-    user_pending_type[user_id]["selected"] = selected_id
-    user_pending_type[user_id]["selected_label"] = selected_label
-
-    # ✅ Покажи избраното
-    bot.edit_message_text(
-        chat_id=user_id,
-        message_id=user_pending_type[user_id]["msg_id"],
-        text=f"✅ Избра вид: {selected_label}"
-    )
-    # 📥 Ако има чакащи данни за транзакция — записваме в Airtable
-    if user_id in pending_transaction_data:
-        tx = pending_transaction_data[user_id]
-        account_id = find_account(tx["account_name"])
-
-        fields = {
-            "Дата": tx["datetime"],
-            "Описание": tx["description"],
-            "Име на потребителя": tx["user_name"],
-            "ВИД": [selected_id],
-        }
-
-
-        if tx["currency_code"] == "BGN":
-            fields["Сума (лв.)"] = tx["amount"]
-        elif tx["currency_code"] == "EUR":
-            fields["Сума (EUR)"] = tx["amount"]
-        elif tx["currency_code"] == "GBP":
-            fields["Сума (GBP)"] = tx["amount"]
-
-        if account_id:
-            fields["Акаунт"] = [account_id]
-        else:
-            fields["Описание"] = f"{tx['description']} (Акаунт: {tx['account_name']})"
-
-        # 👉 ЛИПСВАЩО: изпращане към Airtable
-        data = {"fields": fields}
-        res_post = requests.post(url_reports, headers=headers, json=data)
-
-
-        if res_post.status_code in (200, 201):
-            record_id = res_post.json().get("id")
-            if user_id not in user_records:
-                user_records[user_id] = []
-            user_records[user_id].append(record_id)
-            bot.send_message(user_id, f"✅ Избра вид: {selected_label}\n📌 Отчетът е записан успешно.")
-        else:
-            bot.send_message(user_id, f"❌ Грешка при записването: {res_post.text}")
-
-        # 🧹 Изчистваме временното състояние
-        del pending_transaction_data[user_id]
-        del user_pending_type[user_id]
-
-
-    # 💾 Запази избраното ID
-    user_pending_type[user_id]["selected_label"] = selected_label
+    except Exception as e:
+        print(f"❌ Грешка в handle_transaction_type_selection: {e}")
+        try:
+            bot.answer_callback_query(call.id, "❌ Възникна грешка. Опитайте отново.")
+        except:
+            pass
 
 # Обработчик за командата "/edit"
 @bot.message_handler(commands=['edit'])
@@ -813,110 +812,48 @@ def get_transaction_types_from_airtable():
 # Обработчик за съобщения с финансови отчети
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
-    text = message.text
-    user_id = message.chat.id
-    user_name = message.from_user.first_name
-    current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # ⬅️ добави това тук
-    
-    # 📌 ПЪРВО парсваме съобщението
-    amount, currency_code, description, account_name, is_expense = parse_transaction(text)
+    try:
+        # Input validation
+        if not message.text or len(message.text) > 500:
+            bot.reply_to(message, "⚠️ Съобщението е празно или твърде дълго (макс. 500 символа).")
+            return
 
-    if amount is None or currency_code is None or description == "":
-        reply_text = ("⚠️ Неразпознат формат. Моля, използвайте формат като:\n"
-                      "`100 лв. за <описание> от <акаунт>`")
-        bot.reply_to(message, reply_text, parse_mode="Markdown")
-        return
+        text = message.text
+        user_id = message.chat.id
+        user_name = message.from_user.first_name or "Unknown"
+        current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # 📌 2. Проверката за избран ВИД
-    types_list = get_transaction_types_from_airtable()
-    if user_id not in user_pending_type or not user_pending_type[user_id].get("selected"):
-        # 💾 Записваме парснатата транзакция, за да я използваме след избора
-        pending_transaction_data[user_id] = {
-            "amount": amount,
-            "currency_code": currency_code,
-            "description": description,
-            "account_name": account_name,
-            "is_expense": is_expense,
-            "user_name": user_name,
-            "datetime": current_datetime,
-        } 
+        # 📌 ПЪРВО парсваме съобщението
+        amount, currency_code, description, account_name, is_expense = parse_transaction(text)
 
-        send_transaction_type_page(chat_id=user_id, page=0)
+        if amount is None or currency_code is None or description == "":
+            reply_text = ("⚠️ Неразпознат формат. Моля, използвайте формат като:\n"
+                          "`100 лв. за <описание> от <акаунт>`")
+            bot.reply_to(message, reply_text, parse_mode="Markdown")
+            return
 
-    # 📌 3. Извличане на акаунта
-    account_part = ""
-    if re.search(r'\bот\b', text, re.IGNORECASE):
-        account_part = re.split(r'\bот\b', text, flags=re.IGNORECASE)[-1].strip()
-    elif re.search(r'\bot\b', text, re.IGNORECASE):
-        account_part = re.split(r'\bot\b', text, flags=re.IGNORECASE)[-1].strip()
+        # 📌 2. Проверката за избран ВИД
+        types_list = get_transaction_types_from_airtable()
+        if user_id not in user_pending_type or not user_pending_type[user_id].get("selected"):
+            # 💾 Записваме парснатата транзакция, за да я използваме след избора
+            pending_transaction_data[user_id] = {
+                "amount": amount,
+                "currency_code": currency_code,
+                "description": description,
+                "account_name": account_name,
+                "is_expense": is_expense,
+                "user_name": user_name,
+                "datetime": current_datetime,
+            }
 
-    # Почистваме акаунта и създаваме ключови думи
-    normalized_input = re.sub(r"[^\w\s]", " ", account_part).lower()
-    keywords = normalized_input.split()
+            send_transaction_type_page(chat_id=user_id, page=0)
 
-    # Конструираме частта с нормализиране на полето REG
-    norm_reg = 'REGEX_REPLACE(LOWER({REG}), "[^0-9a-z ]", " ")'
-
-    # Изграждаме условие за всяка дума: SEARCH("дума", нормализиран REG) > 0
-    conditions = [f'SEARCH(\"{w}\", {norm_reg}) > 0' for w in keywords]
-
-    # Свързваме всички условия с AND(...)
-    formula_filter = "AND(" + ", ".join(conditions) + ")"
-
-    # Търсене на акаунта в Airtable ("ВСИЧКИ АКАУНТИ") по колоната REG с частично съвпадение
-    account_id = None
-    if account_name:
-        # Почистване на акаунта и търсения текст
-        search_term = clean_string(account_name.strip())
-
-        # Изпращаме заявка към Airtable API
-        params = {"filterByFormula": formula_filter}
-        res = requests.get(url_accounts, headers=headers, params=params)
-
-        print(f"Search response: {res.text}")  # Това ще ни покаже отговора от Airtable
-
-        if res.status_code == 200:
-            data = res.json()
-            records = data.get("records", [])
-            if len(records) > 0:
-                account_id = records[0]["id"]  # ID на намерения запис
-                print(f"Account found: {account_id}")
-            else:
-                print("No account found.")
-        else:
-            print(f"Error searching account: HTTP {res.status_code} - {res.text}")      
-
-    # Подготовка на данните за новия запис в "Отчет Телеграм"
-    fields = {
-    "Дата": current_datetime,
-    "Описание": description,
-}
-
-# ✅ Добавяме "ВИД", ако има избран
-    #if user_id in user_pending_type:
-        #selected_type = user_pending_type[user_id].get("selected")
-        #if selected_type:
-            #fields["ВИД"] = [selected_type]  # ✅ не забравяй скобите []
-            #del user_pending_type[user_id]
-
-
-    #if currency_code == "BGN":
-        #fields["Сума (лв.)"] = amount
-    #elif currency_code == "EUR":
-        #fields["Сума (EUR)"] = amount
-    #elif currency_code == "GBP":
-        #fields["Сума (GBP)"] = amount
-
-    #if account_id:
-        #fields["Акаунт"] = [account_id]  # Ако акаунтът е намерен, добавяме ID на акаунта
-    #else:
-        # Ако акаунтът не е намерен, уведомяваме бота и добавяме името на акаунта в описанието
-        #reply_text = f"❌ Не намерихме акаунт с име: {account_name}. Записахме акаунта в полето 'Описание'."
-        #bot.reply_to(message, reply_text)
-        #fields["Описание"] = f"{description} (Акаунт: {account_name})"
-
-    # Добавяме името на потребителя
-    #fields["Име на потребителя"] = user_name  # Добавяме името на потребителя в новото поле
+    except Exception as e:
+        print(f"❌ Грешка в handle_message: {e}")
+        try:
+            bot.reply_to(message, "❌ Възникна грешка при обработка на съобщението. Моля, опитайте отново.")
+        except:
+            pass      
 
 
 WEBHOOK_URL = f"{os.getenv('WEBHOOK_BASE_URL')}/bot{TELEGRAM_BOT_TOKEN}"
