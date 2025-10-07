@@ -310,7 +310,16 @@ def clean_string(s):
     """Премахва препинателни знаци и прави всичко малки букви."""
     return re.sub(r'[^\w\s]', '', s).lower()
 # Cache for transaction types with TTL
-transaction_types_cache = {"data": None, "timestamp": None, "ttl": 3600}  # 1 hour TTL
+transaction_types_cache = {"data": None, "timestamp": None, "ttl": 300}  # 5 minutes TTL (намален от 1 час)
+
+def clear_transaction_types_cache():
+    """Изчиства кеша на типовете транзакции."""
+    global transaction_types_cache
+    transaction_types_cache["data"] = None
+    transaction_types_cache["timestamp"] = None
+    # Clear lru_cache too
+    get_transaction_types.cache_clear()
+    print("🔄 Кешът на типовете транзакции е изчистен")
 
 @functools.lru_cache(maxsize=1)
 def get_transaction_types():
@@ -339,6 +348,7 @@ def get_transaction_types():
             # Update cache
             transaction_types_cache["data"] = types_dict
             transaction_types_cache["timestamp"] = now
+            print(f"📦 Кешът е обновен с {len(types_dict)} типа транзакции")
         else:
             print(f"⚠️ Неуспешна заявка към Airtable: {res.status_code}")
     except requests.exceptions.Timeout:
@@ -417,6 +427,25 @@ def send_transaction_type_page(chat_id, page=0, filtered_types=None):
 @bot.message_handler(commands=['settype'])
 def ask_transaction_type(message):
     send_transaction_type_page(chat_id=message.chat.id, page=0)
+
+@bot.message_handler(commands=['refresh'])
+def refresh_transaction_types(message):
+    """Изчиства кеша и обновява типовете транзакции."""
+    user_id = message.chat.id
+
+    # Rate limiting
+    if not rate_limiter.is_allowed(user_id):
+        bot.reply_to(message, "⏸️ Твърде много заявки. Моля, изчакайте малко.")
+        return
+
+    try:
+        clear_transaction_types_cache()
+        # Force reload
+        types = get_transaction_types()
+        bot.reply_to(message, f"✅ Кешът е обновен! Намерени са {len(types)} типа транзакции.")
+    except Exception as e:
+        print(f"❌ Error in refresh_transaction_types: {e}")
+        bot.reply_to(message, "❌ Грешка при обновяване на типовете транзакции.")
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_transaction_type_selection(call):
